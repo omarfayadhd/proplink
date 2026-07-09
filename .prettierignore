@@ -1,0 +1,6 @@
+.next
+node_modules
+package-lock.json
+src/generated
+docs/PropLink_UK_Master_Document.md
+docs/PropLink_Sprint_Plan_Claude_Code.md

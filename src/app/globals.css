@@ -1,26 +1,33 @@
 @import "tailwindcss";
 
-:root {
-  --background: #ffffff;
-  --foreground: #171717;
-}
+/*
+ * PropLink UK brand design tokens — single source of truth.
+ * Defined in docs/ARCHITECTURE.md §Design tokens. Do not hardcode hex values
+ * in components; use the Tailwind utilities these tokens generate
+ * (bg-primary, text-body, border-line, bg-surface, ...).
+ */
+@theme {
+  --color-background: #ffffff;
+  --color-primary: #002147; /* deep navy */
+  --color-secondary: #003580;
+  --color-accent: #0066ff; /* CTA */
+  --color-surface: #f5f8ff;
+  --color-pale: #ebf2ff;
+  --color-success: #0a6640;
+  --color-intel: #0099a8;
+  --color-warning: #a05a00;
+  --color-danger: #c0152a;
+  --color-body: #2d3a4a;
+  --color-muted: #5a6a7a;
+  --color-line: #d0dae6; /* "border" in the brief; renamed to avoid clashing with Tailwind's border-* utilities */
 
-@theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
-  }
+  --font-sans:
+    var(--font-inter), Calibri, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    sans-serif;
 }
 
 body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  background: var(--color-background);
+  color: var(--color-body);
+  font-family: var(--font-sans);
 }
