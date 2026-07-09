@@ -1,0 +1,551 @@
+// PropLink UK — full core schema (Sprint 1, Task 1.2).
+// Geospatial (PostGIS) and full-text (tsvector) columns are Unsupported types;
+// their indexes and triggers live in raw SQL migrations.
+// Money convention: ALL *GBP fields are integer PENCE.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+enum Role {
+  AGENT
+  INVESTOR
+  BUYER
+  ADMIN
+}
+
+enum KycStatus {
+  NOT_STARTED
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+enum PropertyStatus {
+  DRAFT
+  PENDING_REVIEW
+  LIVE
+  UNDER_OFFER
+  SOLD
+}
+
+enum PropertyType {
+  RESIDENTIAL
+  COMMERCIAL
+  HMO
+  LAND
+}
+
+enum EpcRating {
+  A
+  B
+  C
+  D
+  E
+  F
+  G
+}
+
+enum DistressTag {
+  SUBSIDENCE
+  DAMP
+  RENOVATION_NEEDED
+  PROBATE
+  ASBESTOS
+  ROOF_REQUIRED
+  WATER_DAMAGE
+  FIRE_DAMAGE
+}
+
+enum SyndicateStatus {
+  OPEN
+  FUNDED
+  IN_REFURB
+  LISTED
+  COMPLETED
+}
+
+enum PledgeStatus {
+  PLEDGED
+  CONFIRMED
+  WITHDRAWN
+}
+
+enum MilestoneStatus {
+  PLANNED
+  IN_PROGRESS
+  COMPLETE
+}
+
+enum LedgerType {
+  EXPENSE
+  CAPITAL_INJECTION
+}
+
+enum EnquiryStatus {
+  NEW
+  RESPONDED
+  CLOSED
+}
+
+enum SubscriptionTier {
+  STARTER
+  PRO
+  ELITE
+}
+
+enum OfferStatus {
+  SUBMITTED
+  ACCEPTED
+  REJECTED
+  WITHDRAWN
+}
+
+enum DealStage {
+  OFFER_ACCEPTED
+  SOLICITOR_REFERRED
+  CONVEYANCING
+  EXCHANGED
+  COMPLETED
+}
+
+enum ViewingStatus {
+  REQUESTED
+  CONFIRMED
+  DECLINED
+  DONE
+}
+
+enum PartnerCategory {
+  INSURANCE
+  CONVEYANCING
+  STAGING
+  TRADES
+  SURVEYOR
+  SOLICITOR
+}
+
+enum AdModel {
+  CPM
+  CPC
+}
+
+model User {
+  id             String    @id @default(cuid())
+  email          String    @unique
+  passwordHash   String?
+  name           String
+  role           Role
+  emailVerified  DateTime?
+  kycStatus      KycStatus @default(NOT_STARTED)
+  complianceCode String?
+  avatarUrl      String?
+  gdprConsentAt  DateTime?
+  active         Boolean   @default(true)
+  createdAt      DateTime  @default(now())
+
+  agentProfiles     AgentProfile[]
+  pledges           SyndicatePledge[]
+  enquiries         Enquiry[]
+  savedProperties   SavedProperty[]
+  savedSearches     SavedSearch[]
+  appraisals        Appraisal[]
+  subscription      Subscription?
+  offers            Offer[]
+  viewings          Viewing[]
+  sentMessages      ChatMessage[]     @relation("SentMessages")
+  receivedMessages  ChatMessage[]     @relation("ReceivedMessages")
+  kycRecords        KycRecord[]
+  auditLogs         AuditLog[]
+  ledgerEntries     LedgerEntry[]
+  verificationTokens VerificationToken[]
+}
+
+model VerificationToken {
+  id        String   @id @default(cuid())
+  userId    String
+  token     String   @unique
+  purpose   String // EMAIL_VERIFY | PASSWORD_RESET
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, purpose])
+}
+
+model AgentProfile {
+  id                String  @id @default(cuid())
+  userId            String
+  agencyName        String
+  bio               String?
+  rating            Float   @default(0)
+  verifiedDealCount Int     @default(0)
+  complianceCode    String  @unique
+  active            Boolean @default(true)
+
+  user        User        @relation(fields: [userId], references: [id])
+  properties  Property[]
+  caseStudies CaseStudy[]
+  appraisals  Appraisal[]
+
+  @@index([userId])
+}
+
+model Property {
+  id             String         @id @default(cuid())
+  agentProfileId String
+  title          String
+  description    String
+  status         PropertyStatus @default(DRAFT)
+  addressLine1   String
+  city           String
+  region         String
+  postcode       String
+  /// PostGIS point; set via raw SQL from lat/lng. GIST-indexed in migration.
+  location       Unsupported("geography(Point,4326)")?
+  propertyType   PropertyType
+  bedrooms       Int            @default(0)
+  askingPriceGBP Int // pence
+  targetRoiPct   Float?
+  epcRating      EpcRating?
+  epcCertUrl     String?
+  floorPlanUrl   String?
+  /// Maintained by trigger in migration; GIN-indexed.
+  searchVector   Unsupported("tsvector")?
+  createdAt      DateTime       @default(now())
+  publishedAt    DateTime?
+
+  agentProfile      AgentProfile          @relation(fields: [agentProfileId], references: [id])
+  distressTags      PropertyDistressTag[]
+  images            PropertyImage[]
+  syndicateProjects SyndicateProject[]
+  enquiries         Enquiry[]
+  savedBy           SavedProperty[]
+  successFees       SuccessFee[]
+  offers            Offer[]
+  deals             Deal[]
+  viewings          Viewing[]
+  chatMessages      ChatMessage[]
+
+  @@index([status])
+  @@index([agentProfileId])
+  @@index([postcode])
+  @@index([city])
+}
+
+model PropertyDistressTag {
+  propertyId String
+  tag        DistressTag
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([propertyId, tag])
+}
+
+model PropertyImage {
+  id         String @id @default(cuid())
+  propertyId String
+  url        String
+  sortOrder  Int    @default(0)
+
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+}
+
+model SyndicateProject {
+  id                      String          @id @default(cuid())
+  propertyId              String
+  name                    String
+  capitalTargetGBP        Int // pence
+  equityModelNotes        String?
+  status                  SyndicateStatus @default(OPEN)
+  capitalProtectionPolicy String?
+  createdAt               DateTime        @default(now())
+
+  property    Property          @relation(fields: [propertyId], references: [id])
+  pledges     SyndicatePledge[]
+  milestones  Milestone[]
+  ledger      LedgerEntry[]
+  successFees SuccessFee[]
+
+  @@index([status])
+}
+
+/// EOI mode: pledges record intent only — money NEVER moves (see docs/CONTEXT.md).
+model SyndicatePledge {
+  id             String       @id @default(cuid())
+  projectId      String
+  investorUserId String
+  amountGBP      Int // pence
+  status         PledgeStatus @default(PLEDGED)
+  createdAt      DateTime     @default(now())
+
+  project  SyndicateProject @relation(fields: [projectId], references: [id])
+  investor User             @relation(fields: [investorUserId], references: [id])
+
+  @@index([projectId])
+  @@index([investorUserId])
+}
+
+model Milestone {
+  id          String          @id @default(cuid())
+  projectId   String
+  title       String
+  notes       String?
+  status      MilestoneStatus @default(PLANNED)
+  completedAt DateTime?
+
+  project SyndicateProject @relation(fields: [projectId], references: [id])
+  photos  MilestonePhoto[]
+
+  @@index([projectId])
+}
+
+model MilestonePhoto {
+  id          String @id @default(cuid())
+  milestoneId String
+  url         String
+
+  milestone Milestone @relation(fields: [milestoneId], references: [id], onDelete: Cascade)
+}
+
+model LedgerEntry {
+  id          String     @id @default(cuid())
+  projectId   String
+  type        LedgerType
+  amountGBP   Int // pence
+  description String
+  createdBy   String
+  createdAt   DateTime   @default(now())
+
+  project SyndicateProject @relation(fields: [projectId], references: [id])
+  author  User             @relation(fields: [createdBy], references: [id])
+
+  @@index([projectId])
+}
+
+model Enquiry {
+  id         String        @id @default(cuid())
+  propertyId String
+  fromUserId String
+  message    String
+  status     EnquiryStatus @default(NEW)
+  createdAt  DateTime      @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id])
+  from     User     @relation(fields: [fromUserId], references: [id])
+
+  @@index([propertyId])
+  @@index([fromUserId])
+}
+
+model SavedProperty {
+  userId     String
+  propertyId String
+
+  user     User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@id([userId, propertyId])
+}
+
+model SavedSearch {
+  id            String  @id @default(cuid())
+  userId        String
+  name          String
+  paramsJson    Json
+  alertsEnabled Boolean @default(false)
+  lastAlertAt   DateTime?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model CaseStudy {
+  id             String  @id @default(cuid())
+  agentProfileId String
+  title          String
+  capexGBP       Int // pence
+  netMarginGBP   Int // pence
+  description    String
+  imageUrl       String?
+
+  agentProfile AgentProfile @relation(fields: [agentProfileId], references: [id])
+
+  @@index([agentProfileId])
+}
+
+model Appraisal {
+  id             String   @id @default(cuid())
+  agentProfileId String
+  investorUserId String
+  rating         Int // 1..5, checked in service layer
+  review         String
+  createdAt      DateTime @default(now())
+
+  agentProfile AgentProfile @relation(fields: [agentProfileId], references: [id])
+  investor     User         @relation(fields: [investorUserId], references: [id])
+
+  @@unique([agentProfileId, investorUserId])
+}
+
+model Subscription {
+  id               String           @id @default(cuid())
+  agentUserId      String           @unique
+  stripeCustomerId String?
+  stripeSubId      String?
+  tier             SubscriptionTier @default(STARTER)
+  status           String           @default("inactive")
+  listingLimit     Int              @default(3)
+
+  agent User @relation(fields: [agentUserId], references: [id])
+}
+
+model SuccessFee {
+  id         String   @id @default(cuid())
+  propertyId String
+  projectId  String?
+  amountGBP  Int // pence
+  vatGBP     Int // pence
+  loggedAt   DateTime @default(now())
+
+  property Property          @relation(fields: [propertyId], references: [id])
+  project  SyndicateProject? @relation(fields: [projectId], references: [id])
+}
+
+model Offer {
+  id          String      @id @default(cuid())
+  propertyId  String
+  buyerUserId String
+  amountGBP   Int // pence
+  status      OfferStatus @default(SUBMITTED)
+  createdAt   DateTime    @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id])
+  buyer    User     @relation(fields: [buyerUserId], references: [id])
+  deals    Deal[]
+
+  @@index([propertyId])
+}
+
+model Deal {
+  id         String    @id @default(cuid())
+  propertyId String
+  offerId    String
+  stage      DealStage @default(OFFER_ACCEPTED)
+  updatedAt  DateTime  @updatedAt
+
+  property Property @relation(fields: [propertyId], references: [id])
+  offer    Offer    @relation(fields: [offerId], references: [id])
+}
+
+model Viewing {
+  id          String        @id @default(cuid())
+  propertyId  String
+  buyerUserId String
+  slotStart   DateTime
+  slotEnd     DateTime
+  status      ViewingStatus @default(REQUESTED)
+
+  property Property @relation(fields: [propertyId], references: [id])
+  buyer    User     @relation(fields: [buyerUserId], references: [id])
+
+  @@index([propertyId])
+}
+
+model ChatMessage {
+  id         String    @id @default(cuid())
+  propertyId String
+  fromUserId String
+  toUserId   String
+  body       String
+  readAt     DateTime?
+  createdAt  DateTime  @default(now())
+
+  property Property @relation(fields: [propertyId], references: [id])
+  from     User     @relation("SentMessages", fields: [fromUserId], references: [id])
+  to       User     @relation("ReceivedMessages", fields: [toUserId], references: [id])
+
+  @@index([propertyId])
+  @@index([toUserId, readAt])
+}
+
+model Partner {
+  id         String          @id @default(cuid())
+  category   PartnerCategory
+  name       String
+  url        String
+  logoUrl    String?
+  approved   Boolean         @default(false)
+  clickCount Int             @default(0)
+
+  adSlots AdSlot[]
+}
+
+model AdSlot {
+  id          String  @id @default(cuid())
+  partnerId   String
+  placement   String
+  model       AdModel
+  rateGBP     Int // pence
+  active      Boolean @default(false)
+  impressions Int     @default(0)
+  clicks      Int     @default(0)
+
+  partner Partner @relation(fields: [partnerId], references: [id])
+}
+
+/// UK AML: retained 5 years — soft-delete only, survives user erasure (anonymised link).
+model KycRecord {
+  id                  String   @id @default(cuid())
+  userId              String
+  provider            String
+  providerApplicantId String?
+  status              String
+  rawWebhookJson      Json?
+  passportCountry     String?
+  crn                 String?
+  createdAt           DateTime @default(now())
+
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+}
+
+/// Land Registry Price Paid ingest (Sprint 5).
+model ComparableSale {
+  id               String       @id @default(cuid())
+  postcodeDistrict String
+  address          String
+  priceGBP         Int // pence
+  soldDate         DateTime
+  propertyType     PropertyType
+  source           String       @default("LAND_REGISTRY")
+
+  @@index([postcodeDistrict, soldDate])
+}
+
+model AuditLog {
+  id          String   @id @default(cuid())
+  actorUserId String
+  action      String
+  entity      String
+  entityId    String
+  metaJson    Json?
+  createdAt   DateTime @default(now())
+
+  actor User @relation(fields: [actorUserId], references: [id])
+
+  @@index([entity, entityId])
+}
