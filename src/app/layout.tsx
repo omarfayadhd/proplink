@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { Inter } from "next/font/google";
 import "./globals.css";
+import { SiteHeader } from "@/components/layout/SiteHeader";
+import { SiteFooter } from "@/components/layout/SiteFooter";
+import { MetricsStrip } from "@/components/layout/MetricsStrip";
+import { CookieBanner } from "@/components/layout/CookieBanner";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -23,7 +27,13 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="en-GB" className={`${inter.variable} h-full antialiased`}>
-      <body className="flex min-h-full flex-col">{children}</body>
+      <body className="flex min-h-full flex-col">
+        <MetricsStrip />
+        <SiteHeader />
+        {children}
+        <SiteFooter />
+        <CookieBanner />
+      </body>
     </html>
   );
 }

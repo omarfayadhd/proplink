@@ -1,12 +1,5 @@
 import Link from "next/link";
 
-const METRICS = [
-  { label: "Total Distress Inventory", value: "—" },
-  { label: "Completed Syndicate Deals", value: "—" },
-  { label: "Accrued Success Fees", value: "—" },
-  { label: "Vetted Referrals Routed", value: "—" },
-];
-
 const PORTALS = [
   {
     name: "Marketplace",
@@ -33,35 +26,6 @@ const PORTALS = [
 export default function Home() {
   return (
     <main className="flex flex-1 flex-col">
-      {/* Global metrics strip (live values arrive with Task 1.5) */}
-      <div className="border-b border-line bg-primary text-white">
-        <div className="mx-auto grid w-full max-w-6xl grid-cols-2 gap-2 px-6 py-3 text-center sm:grid-cols-4">
-          {METRICS.map((m) => (
-            <div key={m.label}>
-              <div className="text-lg font-semibold">{m.value}</div>
-              <div className="text-xs text-pale/80">{m.label}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      <header className="mx-auto flex w-full max-w-6xl items-center justify-between px-6 py-5">
-        <span className="text-xl font-bold tracking-tight text-primary">
-          PropLink<span className="text-accent"> UK</span>
-        </span>
-        <nav className="flex items-center gap-4 text-sm">
-          <Link href="/login" className="font-medium text-secondary hover:text-accent">
-            Log in
-          </Link>
-          <Link
-            href="/register"
-            className="rounded-md bg-accent px-4 py-2 font-semibold text-white hover:bg-secondary"
-          >
-            Get started
-          </Link>
-        </nav>
-      </header>
-
       <section className="bg-surface">
         <div className="mx-auto max-w-6xl px-6 py-20 text-center">
           <h1 className="mx-auto max-w-3xl text-4xl font-bold tracking-tight text-primary sm:text-5xl">
@@ -102,18 +66,6 @@ export default function Home() {
           ))}
         </div>
       </section>
-
-      <footer className="border-t border-line bg-primary py-8 text-center text-sm text-white/80">
-        <p>
-          PropLink UK — Discovery · Due Diligence · Syndication · Refurbishment ·
-          Completion
-        </p>
-        <p className="mt-2 text-xs">
-          Syndicate participation is currently expression-of-interest only — no funds are
-          collected on-platform. AI valuations are statistical projections and do not
-          substitute for RICS-qualified surveys.
-        </p>
-      </footer>
     </main>
   );
 }
