@@ -60,6 +60,10 @@ verification against a live database awaits Supabase credentials (H1.2). See
 `sprints/STATUS.md` for the live tracker and `BLOCKERS.md` for what is waiting on
 human tasks.
 
+**Mode: LOCAL-ONLY development** (2026-07-23, ADR-004) — no GitHub/Vercel/domains/
+AWS/launch tasks for now; each deferred item has a revive trigger in
+`HUMAN_TASKS.md` § Deferred, checked at the start of every week.
+
 ## Glossary
 
 - **EOI** — Expression of Interest: a recorded pledge with no money movement.

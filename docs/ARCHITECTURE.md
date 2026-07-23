@@ -100,3 +100,4 @@ values in components.
 | [ADR-001](adr/ADR-001-prisma-7-driver-adapter.md)      | Prisma 7 with `@prisma/adapter-pg` driver adapter (deviation: plan predates Prisma 7) |
 | [ADR-002](adr/ADR-002-border-token-renamed-to-line.md) | Brand token `border` exposed as `line` to avoid Tailwind utility clash                |
 | [ADR-003](adr/ADR-003-nextjs-16.md)                    | Next.js 16.2 — current stable; the brief's "Next.js 15" predates it                   |
+| [ADR-004](adr/ADR-004-local-only-dev-phase.md)         | Local-only dev phase — online/launch tasks deferred with revive triggers              |
