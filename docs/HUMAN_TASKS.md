@@ -14,22 +14,12 @@
 
 ## ✅ Do now — the only hard requirement for local dev
 
-- [ ] **H1.2 Supabase (database)** (~15 min, free tier)
-  1. supabase.com → sign up (email works; no GitHub needed) → **New project**.
-  2. Name `proplink-uk`, region **London (eu-west-2)**, click **Generate password**
-     and save it in a password manager.
-  3. Wait ~2 min for provisioning.
-  4. Click **Connect** (top bar) → copy the **Transaction pooler** URI →
-     `DATABASE_URL` in `.env.local`; copy the **Direct connection** URI →
-     `DIRECT_URL`. Replace `[YOUR-PASSWORD]` in both.
-  5. Tell Claude Code — it runs `db:migrate` + `db:seed` and verifies
-     register→login and the PostGIS `ST_DWithin` acceptance check.
-  - _Why cloud when we're local-only? No Docker/Postgres on this machine; the
-    free tier is £0 and it's the plan's target DB anyway. Alternative if you
-    prefer zero cloud: install Docker Desktop and Claude Code will spin up a
-    `postgis` container instead._
-
+- [x] **H1.2 Supabase (database)** — ✅ done 2026-07-23 (project
+      `tznxdauihxgkietbppdd`, London; migrated, seeded, verified)
 - [x] `NEXTAUTH_SECRET` — generated into `.env.local` 2026-07-09.
+
+_Nothing else is required for local dev right now — next required item is
+whatever Deferred trigger fires first (see table below)._
 
 ## 🟡 Optional now — all have working fallbacks, do whenever convenient
 

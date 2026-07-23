@@ -4,8 +4,9 @@
 > `docs/CONTEXT.md` at sprint boundaries. Task definitions and acceptance criteria:
 > `docs/PropLink_Sprint_Plan_Claude_Code.md`. Per-sprint detail: `SPRINT-NN.md`.
 
-**We are here → Sprint 1, Week 1** (build tasks code-complete; DB verification
-pending H1.2 credentials).
+**We are here → Sprint 1, Week 1 checkpoint PASSED (2026-07-23) — Week 2 next.**
+Database live on Supabase (H1.2 ✅); migrations, seed, geospatial + FTS and
+register→login all verified against the real DB.
 
 Legend: ✅ done · 🟡 code-complete, verification blocked (see BLOCKERS.md) ·
 🔵 in progress · ⬜ not started · ⏭ deferred
@@ -15,14 +16,15 @@ Legend: ✅ done · 🟡 code-complete, verification blocked (see BLOCKERS.md) �
 | Task                       | Scope                                                                                                               | State                                                               |
 | -------------------------- | ------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------- |
 | 1.1 Project setup          | Next.js 16 + TS strict + Tailwind tokens, ESLint/Prettier, repo structure, `.env.example`, CI workflow, Sentry init | ✅ (CI runs on first push — H1.1)                                   |
-| 1.2 Database & Prisma      | Full schema, PostGIS/pg_trgm migration, FTS trigger, seed (4 users + 3 agent profiles)                              | 🟡 awaiting H1.2 to run `db:migrate`, `db:seed`, `ST_DWithin` check |
-| 1.3 Auth & RBAC pt 1       | Credentials + Google, registration w/ role select, JWT with `role`+`kycStatus`, login/logout                        | 🟡 credentials flow needs DB (H1.2); Google needs H1.6              |
+| 1.2 Database & Prisma      | Full schema, PostGIS/pg_trgm migration, FTS trigger, seed (4 users + 3 agent profiles)                              | ✅ verified 2026-07-23: migrate+seed clean, `ST_DWithin` + FTS pass |
+| 1.3 Auth & RBAC pt 1       | Credentials + Google, registration w/ role select, JWT with `role`+`kycStatus`, login/logout                        | ✅ verified 2026-07-23: register+login live; Google deferred (H1.6) |
 | 1.4 Auth & RBAC pt 2       | Email verify, password reset, route middleware, `requireRole()`/`requireKyc()`, GDPR endpoints                      | ⬜ Week 2                                                           |
 | 1.5 Layout & metrics strip | Global nav, KYC pill, metrics strip (Redis-cached), UI primitives, `/dev/ui`                                        | ⬜ Week 2 (static strip placeholder on landing)                     |
 | 1.6 Admin shell            | `/admin` users table, placeholder tabs, AuditLog on mutations                                                       | ⬜ Week 2                                                           |
 
-**Week 1 checkpoint:** repo+CI ✅ · schema migrated 🟡 (blocked on H1.2) ·
-register/login working 🟡 (blocked on H1.2) · Sprint 1 human tasks — with the human.
+**Week 1 checkpoint: PASSED 2026-07-23** — repo ✅ (CI in-repo, runs when H1.1
+revives) · schema migrated + seeded on Supabase ✅ · register/login verified ✅ ·
+human tasks: H1.2 done; rest deferred per ADR-004.
 
 ## Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine
 

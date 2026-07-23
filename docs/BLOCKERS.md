@@ -8,12 +8,11 @@
 > `HUMAN_TASKS.md` § Deferred and are NOT blockers — this table holds only what
 > currently limits the local build.
 
-| Since      | Waiting on                                       | What is blocked                                                                                                  | Fallback in place                                                          |
-| ---------- | ------------------------------------------------ | ---------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------- |
-| 2026-07-09 | **H1.2 Supabase** (`DATABASE_URL`, `DIRECT_URL`) | `db:migrate` + `db:seed`; live verification of registration/login; `ST_DWithin` acceptance check (Tasks 1.2/1.3) | All code + migration SQL ready to run the moment URLs land in `.env.local` |
-| 2026-07-09 | **H1.6 Google OAuth** (optional)                 | Google login button/provider                                                                                     | Provider auto-disabled; credentials auth fully functional                  |
-| 2026-07-09 | **H1.7 Resend** (optional)                       | Real email delivery for verification + password reset (Week 2, Task 1.4)                                         | Console/mock mailer behind the mailer interface                            |
-| 2026-07-09 | **H1.5 Upstash** (optional)                      | Redis caching for metrics strip + rate limiting (Week 2, Task 1.5)                                               | Graceful no-cache / no-limit fallback in dev                               |
+| Since      | Waiting on                       | What is blocked                                                          | Fallback in place                                         |
+| ---------- | -------------------------------- | ------------------------------------------------------------------------ | --------------------------------------------------------- |
+| 2026-07-09 | **H1.6 Google OAuth** (optional) | Google login button/provider                                             | Provider auto-disabled; credentials auth fully functional |
+| 2026-07-09 | **H1.7 Resend** (optional)       | Real email delivery for verification + password reset (Week 2, Task 1.4) | Console/mock mailer behind the mailer interface           |
+| 2026-07-09 | **H1.5 Upstash** (optional)      | Redis caching for metrics strip + rate limiting (Week 2, Task 1.5)       | Graceful no-cache / no-limit fallback in dev              |
 
 Resolved blockers move to the bottom with a ✅ and the resolution date.
 Deferred-by-decision (not blocking local work — see ADR-004): H1.1 GitHub/Vercel
@@ -22,4 +21,6 @@ applications.
 
 ## Resolved
 
-_(none yet)_
+- ✅ 2026-07-23 — **H1.2 Supabase**: `DATABASE_URL`/`DIRECT_URL` in `.env.local`
+  (project `tznxdauihxgkietbppdd`, London). Migration + seed applied; `ST_DWithin`,
+  FTS trigger, and register→login all verified against the live DB.
