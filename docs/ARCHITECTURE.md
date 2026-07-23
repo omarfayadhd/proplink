@@ -21,7 +21,7 @@
 | KYC         | Sumsub (sandbox) behind `KycService` + mock                                     | Arrives Sprint 4                                                                                                                                                                                                                                                                                               |
 | Payments    | Stripe (test mode) — subscriptions/boosts/ads ONLY                              | Syndicate charges forbidden while `SYNDICATE_PAYMENTS_ENABLED=false`                                                                                                                                                                                                                                           |
 | Realtime    | Pusher Channels                                                                 | Arrives Sprint 4                                                                                                                                                                                                                                                                                               |
-| Email       | Resend + React Email                                                            | Arrives Week 2                                                                                                                                                                                                                                                                                                 |
+| Email       | `Mailer` interface — Resend (auto when `RESEND_API_KEY` set) + console fallback | `src/services/email/mailer.ts`; verification + reset emails live, console-logged in dev                                                                                                                                                                                                                        |
 | Hosting/CI  | Vercel + GitHub Actions (`.github/workflows/ci.yml`)                            | typecheck, lint, format, unit, E2E on PR                                                                                                                                                                                                                                                                       |
 | Monitoring  | Sentry via `instrumentation.ts` / `instrumentation-client.ts`                   | No-op until `SENTRY_DSN` set                                                                                                                                                                                                                                                                                   |
 | Testing     | Vitest (`tests/unit`) + Playwright (`tests/e2e`, prod build on port 3100 in CI) |                                                                                                                                                                                                                                                                                                                |
@@ -72,8 +72,21 @@ Full schema: `prisma/schema.prisma` (implements the sprint plan's core schema).
 - Registration: `POST /api/register` (thin) → `src/services/users/registration.ts`
   (Zod schema + bcrypt + create). Self-serve roles: AGENT/INVESTOR/BUYER.
   **ADMIN is seed-only.** First Google sign-in provisions a BUYER.
-- Week 2 adds: email verification (Resend), password reset, route-group middleware,
-  `requireRole()` / `requireKyc()` helpers.
+- **Route gating** (`src/middleware.ts`): `/admin` (ADMIN), `/agent/**`
+  (AGENT/ADMIN), `/investor/**` (INVESTOR/ADMIN) via edge-safe `getToken` on the
+  JWT cookie — anonymous → login redirect, wrong role → 403 page. Middleware is
+  UX-level only; every mutation ALSO checks `requireRole()` / `requireKyc()`
+  (`src/lib/authz.ts`) server-side.
+- **Single-use tokens** (`services/users/verificationTokens.ts`): sha256-hashed at
+  rest, raw only in the emailed link; email verify 24 h TTL, password reset 1 h.
+  A successful reset also marks the email verified.
+- **GDPR**: cookie banner (localStorage consent), `/privacy` + `/terms`
+  placeholders (final text = H6.3), `DELETE /api/me` anonymises in place and
+  preserves `KycRecord` (AML 5-year retention).
+- **Admin rule**: every admin mutation writes an `AuditLog` row via
+  `services/admin/audit.ts` — no exceptions.
+- **Metrics**: `services/metrics/globalMetrics.ts`, Redis `cached()` 60 s
+  (`src/lib/redis.ts` — degrades to direct compute without Upstash keys).
 
 ## Design system
 

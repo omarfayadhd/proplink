@@ -4,9 +4,10 @@
 > `docs/CONTEXT.md` at sprint boundaries. Task definitions and acceptance criteria:
 > `docs/PropLink_Sprint_Plan_Claude_Code.md`. Per-sprint detail: `SPRINT-NN.md`.
 
-**We are here → Sprint 1, Week 1 checkpoint PASSED (2026-07-23) — Week 2 next.**
-Database live on Supabase (H1.2 ✅); migrations, seed, geospatial + FTS and
-register→login all verified against the real DB.
+**We are here → SPRINT 1 COMPLETE (2026-07-23) — Sprint 2 (Agent Portal &
+Listing Engine, Tasks 2.1–2.7) is next.** Database live on Supabase; Weeks 1+2
+fully verified locally (23 unit + 12 E2E tests green). Vercel/CI deployment
+criteria deferred per ADR-004.
 
 Legend: ✅ done · 🟡 code-complete, verification blocked (see BLOCKERS.md) ·
 🔵 in progress · ⬜ not started · ⏭ deferred
@@ -18,13 +19,18 @@ Legend: ✅ done · 🟡 code-complete, verification blocked (see BLOCKERS.md) �
 | 1.1 Project setup          | Next.js 16 + TS strict + Tailwind tokens, ESLint/Prettier, repo structure, `.env.example`, CI workflow, Sentry init | ✅ (CI runs on first push — H1.1)                                   |
 | 1.2 Database & Prisma      | Full schema, PostGIS/pg_trgm migration, FTS trigger, seed (4 users + 3 agent profiles)                              | ✅ verified 2026-07-23: migrate+seed clean, `ST_DWithin` + FTS pass |
 | 1.3 Auth & RBAC pt 1       | Credentials + Google, registration w/ role select, JWT with `role`+`kycStatus`, login/logout                        | ✅ verified 2026-07-23: register+login live; Google deferred (H1.6) |
-| 1.4 Auth & RBAC pt 2       | Email verify, password reset, route middleware, `requireRole()`/`requireKyc()`, GDPR endpoints                      | ⬜ Week 2                                                           |
-| 1.5 Layout & metrics strip | Global nav, KYC pill, metrics strip (Redis-cached), UI primitives, `/dev/ui`                                        | ⬜ Week 2 (static strip placeholder on landing)                     |
-| 1.6 Admin shell            | `/admin` users table, placeholder tabs, AuditLog on mutations                                                       | ⬜ Week 2                                                           |
+| 1.4 Auth & RBAC pt 2       | Email verify, password reset, route middleware, `requireRole()`/`requireKyc()`, GDPR endpoints                      | ✅ verified 2026-07-23 (E2E: verify→login ×3 roles, 403, erasure)   |
+| 1.5 Layout & metrics strip | Global nav, KYC pill, metrics strip (Redis-cached), UI primitives, `/dev/ui`                                        | ✅ verified 2026-07-23 (`/dev/ui` + live strip E2E)                 |
+| 1.6 Admin shell            | `/admin` users table, placeholder tabs, AuditLog on mutations                                                       | ✅ verified 2026-07-23 (deactivate + audit row E2E)                 |
 
 **Week 1 checkpoint: PASSED 2026-07-23** — repo ✅ (CI in-repo, runs when H1.1
 revives) · schema migrated + seeded on Supabase ✅ · register/login verified ✅ ·
 human tasks: H1.2 done; rest deferred per ADR-004.
+
+**Week 2 checkpoint / Sprint 1 DoD: PASSED 2026-07-23** — 4 roles + RBAC
+enforced (middleware + server-side) ✅ · design system + live metrics strip ✅ ·
+admin shell + audit ✅ · GDPR (banner, placeholders, erasure) ✅ · Vercel/CI
+deploy criteria ⏭ deferred (ADR-004). Detail: `SPRINT-01.md`.
 
 ## Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine
 

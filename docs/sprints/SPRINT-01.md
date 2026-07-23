@@ -40,11 +40,45 @@ admin shell, CI/CD.
 - Unit tests: registration schema. E2E: landing + auth pages render.
 - **Blocked on H1.2:** live register→login acceptance run needs the database.
 
-## Week 2 — planned
+## Week 2 — what was built (2026-07-23)
 
-Task 1.4 (email verify, password reset, middleware, GDPR endpoints — needs H1.7
-Resend key, else mock mailer) · Task 1.5 (nav, KYC pill, metrics strip, UI
-primitives, `/dev/ui`) · Task 1.6 (admin shell + AuditLog).
+### Task 1.4 — Auth & RBAC part 2 ✅
+
+- `Mailer` interface: `ResendMailer` (auto-selected when `RESEND_API_KEY` exists)
+  - `ConsoleMailer` dev fallback (`src/services/email/mailer.ts`).
+- Single-use hashed tokens (`verificationTokens.ts`, sha256 stored, raw in link):
+  email verification (24 h TTL) + password reset (1 h TTL, resets also mark the
+  email verified). Pages: `/verify-email`, `/forgot-password`, `/reset-password`.
+- `src/middleware.ts`: role gates for `/admin`, `/agent/**`, `/investor/**` via the
+  JWT cookie (edge-safe `getToken`); anonymous → `/login?callbackUrl=…`, wrong role
+  → 403 page. `requireRole()` / `requireKyc()` in `src/lib/authz.ts` for
+  handlers/actions.
+- GDPR: cookie banner (localStorage + `useSyncExternalStore`), `/privacy` +
+  `/terms` placeholders (final text = H6.3), `DELETE /api/me` erasure —
+  anonymises in place, preserves `KycRecord` (AML 5-year rule).
+
+### Task 1.5 — Layout, design system & metrics strip ✅
+
+- Root layout now carries `MetricsStrip` (server-computed via
+  `services/metrics/globalMetrics`, Redis `cached()` 60 s with no-Redis fallback),
+  role-aware `SiteHeader` with live KYC pill + sign-out, `SiteFooter`, cookie banner.
+- Primitives in `src/components/ui/`: Button, Card, Input, Select, MultiSelect
+  (distress-tag chips), Badge + colour-coded `EpcBadge` (A–G), Modal, Toast,
+  DataTable, ProgressBar — showcased at `/dev/ui`.
+
+### Task 1.6 — Admin shell ✅
+
+- `/admin` users table: search, role filter, pagination, deactivate/reactivate via
+  server action (`requireRole("ADMIN")` + self-deactivation guard).
+- Every admin mutation writes `AuditLog` (`services/admin/audit.ts`).
+- Placeholder tabs: Moderation (S2), KYC Queue (S4), Fees (S5), Ads (S6).
+
+### Week 2 verification (all local, live Supabase)
+
+typecheck ✅ · lint ✅ · 23 unit tests ✅ · build ✅ · **12 Playwright E2E ✅**:
+register→verify→login for AGENT/INVESTOR/BUYER · GDPR erasure end-to-end ·
+anonymous → login redirect · investor → 403 on `/admin` · admin deactivate +
+audit row + blocked login · `/dev/ui` primitives · live metrics strip.
 
 ## Deviations & decisions
 
@@ -54,6 +88,11 @@ primitives, `/dev/ui`) · Task 1.6 (admin shell + AuditLog).
   needed by Task 1.4 and migrations should stay additive later, so it ships in the
   init migration).
 - E2E runs against a production build on port 3100 in CI to keep dev/test parity.
+- Playwright cannot transpile the ESM Prisma client → E2E DB fixtures use raw `pg`
+  (`tests/e2e/helpers/db.ts`); `NEXTAUTH_URL` is overridden to the test port in
+  `playwright.config.ts` webServer env so Auth.js redirects stay on 3100.
+- Erasure keeps the User row (anonymised) rather than deleting — FK graph stays
+  intact and KycRecord retention is trivially satisfied.
 
 ## Checkpoint state (Week 1, Friday)
 
@@ -64,3 +103,15 @@ primitives, `/dev/ui`) · Task 1.6 (admin shell + AuditLog).
 | Brand tokens on styled landing page            | ✅                                                  |
 | `prisma migrate dev` clean + seed + ST_DWithin | 🟡 ready, needs H1.2                                |
 | 3 self-serve roles register & log in           | 🟡 code-complete, needs H1.2                        |
+
+## Sprint 1 Definition of Done (2026-07-23)
+
+| Criterion                                 | State                                                                               |
+| ----------------------------------------- | ----------------------------------------------------------------------------------- |
+| All 4 roles register/login, RBAC enforced | ✅ verified E2E                                                                     |
+| Schema migrated (PostGIS + FTS)           | ✅ on Supabase                                                                      |
+| Design system + metrics strip             | ✅ `/dev/ui` + live strip                                                           |
+| Admin shell + audit log                   | ✅ verified E2E                                                                     |
+| Deployed to Vercel, CI enforcing tests    | ⏭ deferred by ADR-004 (local-only); CI ships in-repo, local gate = full suite green |
+
+**Sprint 1 complete (local scope). Next: Sprint 2 — Agent Portal & Listing Engine.**
