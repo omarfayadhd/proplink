@@ -15,7 +15,8 @@ test.describe("auth pages", () => {
     await expect(page.getByRole("radio", { name: /admin/i })).toHaveCount(0);
 
     await expect(page.getByRole("checkbox")).toBeAttached();
-    await expect(page.getByText(/privacy policy/i)).toBeVisible();
+    // Scoped to the form — the global cookie banner also mentions the policy.
+    await expect(page.locator("form").getByText(/privacy policy/i)).toBeVisible();
   });
 
   test("login page renders credentials form", async ({ page }) => {

@@ -2,6 +2,7 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { Role } from "@/generated/prisma/enums";
+import { requestEmailVerification } from "@/services/users/emailVerification";
 
 // Admin accounts are created via seed/admin tooling only — never self-serve.
 export const SELF_SERVE_ROLES = [Role.AGENT, Role.INVESTOR, Role.BUYER] as const;
@@ -45,6 +46,10 @@ export async function registerUser(
     },
   });
 
-  // Email verification (Resend) ships in Week 2 — Task 1.4.
+  // Fire-and-forget: registration must not fail if the mailer is down.
+  requestEmailVerification(user.id).catch((err) =>
+    console.error("verification email failed:", err),
+  );
+
   return { ok: true, userId: user.id };
 }
