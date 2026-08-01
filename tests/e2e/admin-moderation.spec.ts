@@ -23,8 +23,21 @@ const RUN = `w2mod-${Date.now()}`;
  *     `/api/auth/session` for the expected email is the actual invariant we
  *     need ("this call ends with an X session or throws"), and — unlike a URL
  *     match — it can't be satisfied by a stale, pre-existing session.
+ *  3. Pre-empt the GDPR cookie-consent banner
+ *     (`src/components/layout/CookieBanner.tsx` — `localStorage`-backed, key
+ *     `proplink-cookie-consent`, NOT an actual cookie despite the name) via
+ *     `addInitScript`, which runs before any page script on every subsequent
+ *     navigation for this `page`'s lifetime. Without this the banner mounts
+ *     on every fresh navigation (nothing ever dismisses it) and, being
+ *     `fixed inset-x-0 bottom-0`, intercepts pointer events on any
+ *     bottom-of-viewport control — here, the moderation modal's
+ *     Approve/Reject buttons.
  */
 async function login(page: Page, email: string, password: string) {
+  await page.addInitScript(() => {
+    window.localStorage.setItem("proplink-cookie-consent", "essential");
+  });
+
   await page.context().clearCookies();
   await page.goto("/login");
   await page.fill("#email", email);
