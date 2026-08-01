@@ -47,3 +47,6 @@ next-env.d.ts
 # playwright
 /playwright-report/
 /test-results/
+
+# local mock storage uploads (Task 2.1 — never commit dev-uploaded media)
+/public/uploads/

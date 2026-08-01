@@ -1,0 +1,13 @@
+[
+  {
+    "AllowedOrigins": [
+      "http://localhost:3000",
+      "https://*.vercel.app",
+      "https://proplink.co.uk"
+    ],
+    "AllowedMethods": ["PUT", "POST", "GET"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": ["ETag"],
+    "MaxAgeSeconds": 3000
+  }
+]
