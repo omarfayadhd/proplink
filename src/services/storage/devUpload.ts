@@ -1,6 +1,6 @@
 import { mkdir, writeFile } from "node:fs/promises";
 import path from "node:path";
-import { STORAGE_KEY_PATTERN } from "@/services/storage/keys";
+import { folderForKind, STORAGE_KEY_PATTERN } from "@/services/storage/keys";
 import {
   allowedContentTypesForKind,
   maxBytesForKind,
@@ -43,6 +43,16 @@ export async function saveDevUpload(form: FormData): Promise<DevUploadResult> {
 
   if (!STORAGE_KEY_PATTERN.test(key)) {
     return { ok: false, status: 400, error: "Invalid storage key" };
+  }
+  if (!key.startsWith(`${folderForKind(uploadKind)}/`)) {
+    // Without this, a caller could declare kind=pdf (20MB cap) with a
+    // key=images/... prefix and land an oversized file in the folder whose
+    // cap is supposed to guarantee <=10MB (or vice versa).
+    return {
+      ok: false,
+      status: 400,
+      error: "Storage key does not match the declared kind",
+    };
   }
   if (!allowedContentTypesForKind(uploadKind).includes(contentType)) {
     return { ok: false, status: 415, error: "Content-type not allowed for this kind" };

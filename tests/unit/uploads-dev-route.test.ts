@@ -60,6 +60,42 @@ describe("POST /api/uploads/dev", () => {
     expect(mockWriteFile).not.toHaveBeenCalled();
   });
 
+  it("rejects a key folder that does not match the declared kind (pdf mislabeled as images/)", async () => {
+    // Attack: kind=pdf + contentType=application/pdf pass the kind/content-type
+    // check, and an 18MB file is under the 20MB pdf cap — but the key points at
+    // images/, whose folder is supposed to guarantee <=10MB objects.
+    const big = new Blob([new Uint8Array(18 * 1024 * 1024)], { type: "application/pdf" });
+    const res = await POST(
+      formRequest(
+        {
+          key: "images/11111111-1111-1111-1111-111111111111.pdf",
+          contentType: "application/pdf",
+          kind: "pdf",
+        },
+        big,
+      ),
+    );
+    expect(res.status).toBe(400);
+    const json = await res.json();
+    expect(json.error).toMatch(/does not match the declared kind/);
+    expect(mockWriteFile).not.toHaveBeenCalled();
+  });
+
+  it("rejects a key folder that does not match the declared kind (image mislabeled as pdfs/)", async () => {
+    const res = await POST(
+      formRequest(
+        {
+          key: "pdfs/11111111-1111-1111-1111-111111111111.jpg",
+          contentType: "image/jpeg",
+          kind: "image",
+        },
+        new Blob(["x"], { type: "image/jpeg" }),
+      ),
+    );
+    expect(res.status).toBe(400);
+    expect(mockWriteFile).not.toHaveBeenCalled();
+  });
+
   it("rejects a content-type not allowed for the declared kind", async () => {
     const res = await POST(
       formRequest(

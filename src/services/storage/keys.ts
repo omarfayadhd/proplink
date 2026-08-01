@@ -12,7 +12,7 @@ export function extensionForContentType(contentType: string): string {
   return EXTENSION_BY_CONTENT_TYPE[contentType] ?? "bin";
 }
 
-function folderForKind(kind: UploadKind): string {
+export function folderForKind(kind: UploadKind): string {
   return kind === "image" ? "images" : "pdfs";
 }
 
