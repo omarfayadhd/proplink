@@ -6,13 +6,13 @@
 > Sprint-level progress sheet (status/remarks/comments): `SPRINT-TRACKER.md`.
 
 **We are here → Sprint 2 (Agent Portal & Listing Engine) in progress on branch
-`sprint-2` — Tasks 2.1, 2.2 and 2.3 code-complete, 2.4–2.7 next.** Database live
-on Supabase; Sprint 1 fully verified locally (23 unit + 12 E2E tests green).
-Sprint 2 so far: 184 unit tests green, typecheck/lint/format clean, production
-build green; DB-backed verification (migrate, dev-server, Playwright) blocked
-in this sandbox by a Supabase pooler connectivity issue — see `BLOCKERS.md` and
-`SPRINT-02.md` for the exact commands to verify once DB access works. Vercel/CI
-deployment criteria deferred per ADR-004.
+`sprint-2` — Tasks 2.1, 2.2, 2.3 and 2.4 code-complete, 2.5–2.7 next.** Database
+live on Supabase; Sprint 1 fully verified locally (23 unit + 12 E2E tests
+green). Sprint 2 so far: 254 unit tests green, typecheck/lint/format clean,
+production build green; DB-backed verification (migrate, dev-server,
+Playwright) blocked in this sandbox by a Supabase pooler connectivity issue —
+see `BLOCKERS.md` and `SPRINT-02.md` for the exact commands to verify once DB
+access works. Vercel/CI deployment criteria deferred per ADR-004.
 
 Legend: ✅ done · 🟡 code-complete, verification blocked (see BLOCKERS.md) ·
 🔵 in progress · ⬜ not started · ⏭ deferred
@@ -40,7 +40,7 @@ deploy criteria ⏭ deferred (ADR-004). Detail: `SPRINT-01.md`.
 ## Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine
 
 🟡 2.1 S3 uploads · 🟡 2.2 Multi-step listing form · 🟡 2.3 Moderation queue ·
-⬜ 2.4 Agent profile hub · ⬜ 2.5 Property detail v1 · ⬜ 2.6 Leads & analytics ·
+🟡 2.4 Agent profile hub · ⬜ 2.5 Property detail v1 · ⬜ 2.6 Leads & analytics ·
 ⬜ 2.7 Seed 40 listings
 
 2.2 code-complete: `GeocodingService` (mock, real-provider-ready), `ListingService`
@@ -61,6 +61,19 @@ replaces the Sprint 1 placeholder. 36 new unit tests green (status machine,
 `transitionStatus` extension, service, both routes). Playwright spec written
 (`tests/e2e/admin-moderation.spec.ts`); DB-backed verification blocked the same
 way as 2.1/2.2 — see `SPRINT-02.md`.
+
+2.4 code-complete: `AgentProfileService` (`src/services/agents/`) — public
+`/agents/[id]` aggregates (star rating from `Appraisal.rating`, Verified
+Completed Deals from SOLD listings, both computed live), case-study CRUD
+(owner-agent only), and the appraisal qualification rule (INVESTOR/BUYER role,
+prior Enquiry/Deal on the agent's listings, one review per user per profile —
+all server-enforced, not just Zod). Multi-profile switcher in the agent nav
+(httpOnly cookie, server-verified on every write) now feeds the listing
+wizard's default profile. No migration needed — the schema already had every
+field this task used. 70 new unit tests green (aggregates, ownership,
+qualification rule, both new route files, the switcher's server action).
+Playwright spec written (`tests/e2e/agent-profile-hub.spec.ts`); DB-backed
+verification blocked the same way as 2.1–2.3 — see `SPRINT-02.md`.
 
 ## Sprint 3 (Weeks 5–6) — Search, Map & Commute
 

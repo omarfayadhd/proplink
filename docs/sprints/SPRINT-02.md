@@ -408,4 +408,237 @@ same convention as the Sprint 1/2 specs.
 | Business logic in `/src/services`                          | ✅                                                                                                 |
 | Migrations additive                                        | ✅ two nullable column adds                                                                        |
 
-**Sprint 2 in progress. Next: Task 2.4 — Agent profile & credibility hub.**
+## Task 2.4 — Agent profile & credibility hub ✅ code-complete (2026-08-01)
+
+### What was built
+
+**`AgentProfileService`** (`src/services/agents/`, new domain directory —
+separate from `src/services/listings/` on purpose: distinct error-code union,
+no reuse of `ListingServiceError`/`transitionStatus`):
+
+- `errors.ts` — `AgentServiceError` (`code`: `VALIDATION` / `NOT_FOUND` /
+  `FORBIDDEN` / `NOT_QUALIFIED` / `DUPLICATE`) + `agentErrorStatus()`, same
+  shape/HTTP-mapping pattern as `listings/errors.ts` (AGENTS.md: one pattern,
+  not a bespoke shape per service).
+- `validation.ts` — `createCaseStudySchema`/`updateCaseStudySchema`
+  (`capexGBP` non-negative, `netMarginGBP` signed — a case study can honestly
+  report a loss — both integer pence, capped at the same £20m sanity ceiling
+  as `MAX_ASKING_PRICE_PENCE`) and `createAppraisalSchema` (`rating` 1..5
+  integer, `review` 10–2000 chars).
+- `agentProfileService.ts`:
+  - `getAgentProfilePublic(agentProfileId)` — the `/agents/[id]` fetch: star
+    rating (`Appraisal.rating` average + count via `db.appraisal.aggregate`)
+    and Verified Completed Deals (`db.property.count({ status: SOLD })`)
+    computed **live**, not read from the `AgentProfile.rating`/
+    `verifiedDealCount` columns the schema carries as unused `@default(0)`
+    placeholders — see decision 1 below.
+  - `listCaseStudiesForOwnedProfile`, `createCaseStudy`, `updateCaseStudy`,
+    `deleteCaseStudy` — full CRUD, ownership-gated (`findOwnedProfile`/
+    `findOwnedCaseStudy`, same "not found or not owned → `FORBIDDEN`" shape
+    as `listingService.findOwnedAgentProfile`); `updateCaseStudy` only writes
+    fields present in the partial input (same convention as
+    `listingService.updateDraft`).
+  - `getAppraisalEligibility({ userId, role, agentProfileId })` — the
+    qualification rule: role must be `INVESTOR`/`BUYER`, no existing
+    `Appraisal` for this `(agentProfileId, investorUserId)` pair, and ≥1
+    `Enquiry` or `Deal` on any of this profile's listings (`Deal` has no
+    direct `userId`, so it's matched via `offer.buyerUserId`). Exported
+    separately from `createAppraisal` so the public page can explain *why* a
+    logged-in user can't review, not just refuse the POST.
+  - `createAppraisal(...)` — server-enforced end to end: re-validates the
+    rating range in the service (not just Zod, matching the schema's own "1..5,
+    checked in service layer" comment), 404s on an unknown profile, then
+    re-runs `getAppraisalEligibility` and maps `ALREADY_REVIEWED` → `DUPLICATE`
+    (409), everything else ineligible → `NOT_QUALIFIED` (403).
+
+**Multi-profile switching** (`src/lib/activeAgentProfile.ts`,
+`src/app/agent/actions.ts`, `src/components/agents/ActiveProfileSwitcher.tsx`):
+
+- Persisted via an httpOnly cookie (`proplink_active_agent_profile`), not a
+  new `User`/`AgentProfile` column — lightest fit per the brief, no migration.
+- `resolveActiveAgentProfileId(profiles, cookieValue)` — pure function
+  (cookie value if it names one of the user's own profiles, else the first,
+  same alphabetical order `listActiveAgentProfiles` already returns);
+  unit-testable without mocking Next's request-scoped APIs.
+- `setActiveAgentProfile` server action — re-fetches the caller's own
+  `listActiveAgentProfiles(userId)` (Task 2.2's existing function; not
+  duplicated) and silently no-ops for any id not in that list before writing
+  the cookie: server-verified, the cookie is never trusted as proof of
+  ownership on its own.
+- `AgentLayout` (`/agent/**` tab shell) now fetches the session's active
+  profiles and renders `<ActiveProfileSwitcher>` next to the "Agent portal"
+  heading when the agent owns >1 (a static agency-name label for exactly 1;
+  nothing for 0, unchanged from before).
+- `/agent/listings/new` now seeds the wizard's `agentProfileId` from the
+  resolved active profile instead of always `profiles[0]` — the *only* change
+  to Task 2.2's wizard; its own per-listing override picker
+  (`ListingWizard`'s `<Select>`, shown only for a brand-new listing when the
+  agent has >1 profile) is untouched, so an agent can still list under a
+  different profile than their nav-level "active" one for one listing without
+  that changing their active selection.
+
+**Public `/agents/[id]` page** (`src/app/agents/[id]/page.tsx`, SSR, no auth
+required to view) — agency name, bio, compliance code, a logo-placeholder
+avatar (initial-in-a-circle, no real asset), star rating + review count (or
+"No reviews yet"), Verified Completed Deals, case studies (title/capex/net
+margin/description, `formatPenceGBP` — reused, not duplicated, from
+`components/listings/wizardTypes.ts`, which is already a plain
+server-and-client-safe module), and the appraisals list (rating, review,
+reviewer name via `Appraisal.investor.name`, date). Below the case studies:
+a `<AppraisalForm>` (client) for a logged-in user the server has already
+confirmed is eligible; otherwise an explanation (`WRONG_ROLE`/
+`NOT_QUALIFIED`/`ALREADY_REVIEWED`) or a login prompt for a guest. The POST
+itself is re-checked server-side regardless — the form's visibility is a UX
+courtesy, not the security boundary.
+
+**Case-study CRUD UI** (`/agent/profile`, replacing the Task 1.6/2.2
+placeholder) — one card per owned `AgentProfile` (agency name, compliance
+code, "View public profile" link to `/agents/[id]`), each with a
+`<CaseStudyManager>` (client): add/inline-edit/delete, pounds↔pence at the
+fetch boundary via the same `poundsToPence`/`penceToPoundsInput` helpers the
+listing wizard uses.
+
+**Routes** (thin, Zod → service → respond, same convention as
+`/api/listings/**`):
+
+- `POST /api/agents/[id]/appraisals` → `requireRole('INVESTOR', 'BUYER')` →
+  `createAppraisalSchema` → `createAppraisal`.
+- `POST /api/case-studies` → `requireRole('AGENT')` → `createCaseStudySchema`
+  → `createCaseStudy`.
+- `PATCH /api/case-studies/[id]` / `DELETE /api/case-studies/[id]` →
+  `requireRole('AGENT')` → `updateCaseStudy`/`deleteCaseStudy`.
+
+**No migration.** Checked `schema.prisma` first per the task brief:
+`CaseStudy`, `Appraisal`, `Enquiry`, `Deal`/`Offer` already carry every field
+this task needed (`capexGBP`, `netMarginGBP`, `rating`, the
+`@@unique([agentProfileId, investorUserId])` one-review-per-user constraint).
+
+### Deviations & decisions
+
+1. **Rating/deal-count computed live, not read from `AgentProfile.rating`/
+   `verifiedDealCount`.** Those two columns exist in the schema
+   (`@default(0)`) but nothing writes to them anywhere in the codebase — the
+   brief itself defines both numbers as derived ("average of Appraisal.rating
+   ... show count", "count of ... SOLD listings"). Computing them live means
+   there's no denormalised counter to keep in sync with `transitionStatus`
+   (owned by Task 2.2/2.3) or `createAppraisal` (this task) — one less place
+   for drift bugs, at the cost of two extra queries per profile-page view (no
+   caching added; revisit if that page's traffic ever needs it — AGENTS.md's
+   "cache before you call" is scoped to external provider calls, not DB
+   reads). The two legacy columns are left as-is; not in scope to remove.
+2. **`netMarginGBP` treated as money (pence), not a percentage**, despite the
+   required-specifics doc's shorthand "net margin %". The schema field is
+   `netMarginGBP` — `GBP` suffix, `Int`, same convention as every other money
+   column — and the original master-plan schema line
+   (`docs/PropLink_Sprint_Plan_Claude_Code.md:157`) confirms it. Schema is the
+   source of truth per AGENTS.md's money convention; the brief prose is
+   informal shorthand.
+3. **Case-study CRUD does NOT check `AgentProfile.active`.** The task's
+   framing note scopes that gate to "listing ownership paths" (Task 2.2/2.3);
+   an agent should still be able to manage their credibility hub content even
+   if a profile is flagged inactive. Only ownership is enforced, per the
+   brief's literal "owner-agent only, server-enforced ownership".
+4. **No ADMIN override on case-study/appraisal routes**, unlike listing
+   mutations (where `transitionStatus` lets an admin act on any listing).
+   Case studies are "owner-agent only" and appraisals are "Investors/buyers
+   only" per the brief — neither carves out an admin exception, so
+   `requireRole` is scoped tightly (`AGENT` only; `INVESTOR`/`BUYER` only).
+5. **Appraisal eligibility is INVESTOR *or* BUYER**, even though the schema
+   field is `Appraisal.investorUserId` — the brief's "may review" rule says
+   "Investors/buyers only", so both qualifying roles are accepted; the field
+   name predates this task and wasn't renamed (renaming would be a
+   non-additive schema change, out of scope).
+6. **Active-profile cookie, not a new column.** Considered a `User.
+   activeAgentProfileId` field, but that's a migration for a value that is
+   purely a UI convenience and never read by any server-side authorization
+   check (every mutation still re-verifies ownership independently, e.g.
+   `createDraft`'s own `findOwnedAgentProfile`) — a cookie is strictly
+   lighter and the brief explicitly invited "cookie or user field — pick the
+   lightest fit".
+7. **Case-study image is a plain "Image URL" text field**, not the Task 2.1
+   `<ImageUploader>`/`<SingleFileUploader>`. The brief's accept criterion is
+   "case study renders with capex/margin"; `imageUrl` is nullable and no
+   image-upload requirement was stated. Wiring the uploader in is a natural
+   follow-up, not done here to keep this task's surface matched to its
+   acceptance criteria.
+
+### Test commands run
+
+```
+npm run typecheck    → clean (tsc --noEmit, no errors)
+npm run lint         → clean (eslint, no errors/warnings) after two test-file
+                        touch-ups (an unused import, an unused destructure —
+                        both fixed to match existing test conventions)
+npm run test         → 28 files, 254 tests passed (0 failed) — 70 new for this
+                        task: active-agent-profile (5), agent-validation (15),
+                        agent-profile-service (28: aggregates, case-study CRUD
+                        + ownership, qualification rule, appraisal creation),
+                        agent-appraisal-route (8), case-studies-routes (11),
+                        agent-actions (3)
+npm run format:check → clean for every file this task touches; remaining
+                        warnings are pre-existing files outside this task's
+                        scope (task-2.*-brief.md, docs/BLOCKERS.md)
+npm run build        → succeeded — new routes present: /agent/profile
+                        (already existed as a placeholder, now real),
+                        /agents/[id], /api/agents/[id]/appraisals,
+                        /api/case-studies, /api/case-studies/[id] (all ƒ
+                        dynamic, consistent with the rest of the
+                        request-scoped tree)
+```
+
+TDD followed throughout: `resolveActiveAgentProfileId`, the validation
+schemas, `agentProfileService.ts` (aggregates, ownership, qualification rule,
+appraisal creation), both new route files, and the `setActiveAgentProfile`
+server action were all written as failing tests first (confirmed red via
+`Cannot find package`), then implemented green in one pass each.
+
+**DB-backed verification blocked in this sandbox** — same pre-existing
+constraint Tasks 2.1–2.3 hit: no outbound reachability to the Supabase pooler
+from this shell. Per this task's explicit instructions, `db:migrate` was not
+needed (no migration — see above) and the Playwright spec below was not run
+(confirmed only via `--list`, which doesn't touch the DB).
+
+**Commands the controller should run once DB access works, in order:**
+
+```
+npm run dev                              # or npm run build && npm run start
+npx playwright test tests/e2e/agent-profile-hub.spec.ts
+```
+
+The spec (`tests/e2e/agent-profile-hub.spec.ts`) has two tests:
+
+- **Case study rendering**: logs in as `agent@proplink.test`, adds a case
+  study via `/agent/profile`'s `<CaseStudyManager>` for the seeded "Northgate
+  Distressed Assets" profile (`complianceCode = PL-AG-0001`, looked up by SQL
+  rather than hardcoding its id), then visits `/agents/<id>` (no login) and
+  asserts the title, `£45,000` capex and `£22,000` net margin, and the
+  narrative all render.
+- **Unqualified appraisal rejection**: logs in as `investor@proplink.test`
+  (no `Enquiry`/`Deal` fixtures exist against any agent in the seed data, so
+  this user is unqualified by construction) against the "Mercia Probate
+  Properties" profile (`PL-AG-0002`, a different profile than the first test
+  to avoid any shared-state race under Playwright's `fullyParallel`); asserts
+  the public page shows the ineligibility reason instead of a review form,
+  **and** that a direct `page.request.post` to
+  `/api/agents/<id>/appraisals` (sharing the same browser-context cookies)
+  returns 403 — proving the qualification rule is enforced server-side, not
+  just hidden in the UI. Cleans up its own `CaseStudy`/`Appraisal` rows in
+  `afterAll`.
+
+## Checkpoint state (Task 2.4)
+
+| Criterion                                                          | State                                                       |
+| -------------------------------------------------------------------| ------------------------------------------------------------ |
+| `/agents/[id]` renders agency info, rating, verified deals, compliance code | ✅ |
+| Case studies render with capex/margin (narrative + optional image) | ✅ unit-tested; 🟡 E2E written, blocked on DB access        |
+| Appraisals list (rating, review, reviewer name, date)               | ✅                                                          |
+| Unqualified user cannot post an appraisal (server-enforced)         | ✅ unit-tested (role/qualification/duplicate); 🟡 E2E written, blocked on DB access |
+| One appraisal per user per profile                                  | ✅ (`Appraisal`'s existing `@@unique`, re-checked in the service) |
+| Case-study CRUD, owner-agent only                                   | ✅ unit-tested (ownership + partial-update semantics)       |
+| Multi-profile switcher in agent nav; listing creation uses it        | ✅                                                          |
+| Business logic in `/src/services`; routes thin                      | ✅                                                          |
+| Server-side RBAC + ownership + qualification                        | ✅                                                          |
+| Money integer pence (`capexGBP`/`netMarginGBP`)                     | ✅ UI converts pounds → pence at the fetch boundary          |
+| Migrations additive                                                 | ✅ none needed — schema already had every field             |
+
+**Sprint 2 in progress. Next: Task 2.5 — Property detail page v1.**

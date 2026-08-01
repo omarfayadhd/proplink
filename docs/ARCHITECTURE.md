@@ -204,6 +204,83 @@ DRAFT, extraData: { rejectionReason: reason })`, an `AuditLog` row (`action:
   (email is the primary channel, but the agent shouldn't have to dig through
   their inbox to see why a resubmission is needed).
 
+## Agent profile & credibility hub (Task 2.4)
+
+- `AgentProfileService` (`src/services/agents/agentProfileService.ts`) — its
+  own domain directory, separate from `src/services/listings/`: a distinct
+  `AgentServiceError` code union (`VALIDATION` / `NOT_FOUND` / `FORBIDDEN` /
+  `NOT_QUALIFIED` / `DUPLICATE` → `agentErrorStatus()`), same
+  shape/HTTP-mapping pattern as `ListingServiceError` but no cross-imports.
+  - `getAgentProfilePublic(agentProfileId)` — the public `/agents/[id]` fetch.
+    Star rating (average + count of `Appraisal.rating`) and Verified
+    Completed Deals (count of this profile's `Property.status = SOLD`) are
+    computed **live** via `db.appraisal.aggregate`/`db.property.count`, not
+    read from the `AgentProfile.rating`/`verifiedDealCount` columns — those
+    two exist in the schema (`@default(0)`) but nothing writes to them; the
+    brief itself defines both numbers as derived, and computing them live
+    avoids a denormalised counter that would need to stay in sync with
+    `transitionStatus` (listings) or appraisal creation (here too).
+  - Case-study CRUD (`listCaseStudiesForOwnedProfile`/`createCaseStudy`/
+    `updateCaseStudy`/`deleteCaseStudy`) — ownership-gated only (same
+    "not found or not owned → `FORBIDDEN`" shape as
+    `listingService.findOwnedAgentProfile`); deliberately does **not** also
+    require `AgentProfile.active` — that gate is scoped to listing-ownership
+    paths (Task 2.2/2.3), not credibility-hub content management.
+  - `getAppraisalEligibility({ userId, role, agentProfileId })` — the
+    qualification rule: role must be `INVESTOR` or `BUYER` (the brief's "may
+    review" rule, despite the field being named `Appraisal.investorUserId`),
+    no existing appraisal for this `(agentProfileId, investorUserId)` pair
+    (the schema's own `@@unique`, re-checked here), and ≥1 `Enquiry` or
+    `Deal` against any of this profile's listings (`Deal` has no direct
+    `userId`; matched via `offer.buyerUserId`). Exported separately from
+    `createAppraisal` so the public page can explain *why* a logged-in user
+    can't review, not just reject the POST.
+  - `createAppraisal(...)` re-validates the rating range and re-runs the
+    eligibility check server-side regardless of what the route already
+    validated (AGENTS.md: never trust the client) — `ALREADY_REVIEWED` maps
+    to `DUPLICATE` (409), anything else ineligible maps to `NOT_QUALIFIED`
+    (403).
+- `POST /api/agents/[id]/appraisals` (`requireRole('INVESTOR', 'BUYER')`),
+  `POST /api/case-studies` / `PATCH /api/case-studies/[id]` /
+  `DELETE /api/case-studies/[id]` (`requireRole('AGENT')`, no ADMIN
+  override — the brief's "owner-agent only" is literal) — thin, Zod
+  (`src/services/agents/validation.ts`) → service → respond, same convention
+  as `/api/listings/**`.
+- `/agents/[id]` — public SSR page, no auth required to view: agency
+  name/bio/compliance code, rating, verified deals, case studies
+  (title/capex/net margin/narrative — `netMarginGBP` is money like every
+  other `*GBP` field, not a percentage despite the sprint plan's loose "net
+  margin %" shorthand), and appraisals (rating/review/reviewer
+  name/date). Renders an `<AppraisalForm>` only for a logged-in user the
+  server has already deemed eligible; otherwise an explanation
+  (`WRONG_ROLE`/`NOT_QUALIFIED`/`ALREADY_REVIEWED`) or a login prompt — the
+  POST itself is re-checked server-side regardless of what the page shows.
+- `/agent/profile` — one card per owned `AgentProfile` with a
+  `<CaseStudyManager>` (`src/components/agents/`, client): add/inline-edit/
+  delete, pounds↔pence at the fetch boundary via the same
+  `poundsToPence`/`penceToPoundsInput`/`formatPenceGBP` helpers the Task 2.2
+  listing wizard already exports from `components/listings/wizardTypes.ts`
+  (reused, not duplicated — that module has no server-only imports).
+- **Multi-profile switching**: an agent nav selector
+  (`<ActiveProfileSwitcher>` in `AgentLayout`, shown when the agent owns >1
+  profile) persists the "active" profile in an httpOnly cookie
+  (`ACTIVE_AGENT_PROFILE_COOKIE`, `src/lib/activeAgentProfile.ts`) rather than
+  a new `User`/`AgentProfile` column — a migration wasn't justified for a
+  value no server-side authorization check reads (every mutation still
+  independently re-verifies ownership). `resolveActiveAgentProfileId(profiles,
+  cookieValue)` is a pure function (cookie value if it's one of the user's
+  own profiles, else the first — same order `listActiveAgentProfiles`
+  returns). The `setActiveAgentProfile` server action
+  (`src/app/agent/actions.ts`) re-fetches the caller's own
+  `listActiveAgentProfiles(userId)` before writing the cookie — a
+  stale/tampered value is simply never persisted. `/agent/listings/new` now
+  seeds the listing wizard's default `agentProfileId` from this resolved
+  active profile (previously always `profiles[0]`); the wizard's own
+  per-listing override picker (Task 2.2) is unchanged.
+- No migration for this task — `CaseStudy`, `Appraisal`, `Enquiry`,
+  `Deal`/`Offer` already carried every field needed (checked
+  `prisma/schema.prisma` first, per the task brief).
+
 ## Design system
 
 Tokens defined once in `src/app/globals.css` (`@theme`): `primary #002147`,
