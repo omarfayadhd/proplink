@@ -5,6 +5,7 @@ import { SiteHeader } from "@/components/layout/SiteHeader";
 import { SiteFooter } from "@/components/layout/SiteFooter";
 import { MetricsStrip } from "@/components/layout/MetricsStrip";
 import { CookieBanner } from "@/components/layout/CookieBanner";
+import { ToastProvider } from "@/components/ui/toast";
 
 const inter = Inter({
   variable: "--font-inter",
@@ -28,11 +29,13 @@ export default function RootLayout({
   return (
     <html lang="en-GB" className={`${inter.variable} h-full antialiased`}>
       <body className="flex min-h-full flex-col">
-        <MetricsStrip />
-        <SiteHeader />
-        {children}
-        <SiteFooter />
-        <CookieBanner />
+        <ToastProvider>
+          <MetricsStrip />
+          <SiteHeader />
+          {children}
+          <SiteFooter />
+          <CookieBanner />
+        </ToastProvider>
       </body>
     </html>
   );

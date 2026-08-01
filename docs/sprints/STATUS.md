@@ -3,11 +3,16 @@
 > Living document. Update task states as work happens; update the phase line in
 > `docs/CONTEXT.md` at sprint boundaries. Task definitions and acceptance criteria:
 > `docs/PropLink_Sprint_Plan_Claude_Code.md`. Per-sprint detail: `SPRINT-NN.md`.
+> Sprint-level progress sheet (status/remarks/comments): `SPRINT-TRACKER.md`.
 
-**We are here → SPRINT 1 COMPLETE (2026-07-23) — Sprint 2 (Agent Portal &
-Listing Engine, Tasks 2.1–2.7) is next.** Database live on Supabase; Weeks 1+2
-fully verified locally (23 unit + 12 E2E tests green). Vercel/CI deployment
-criteria deferred per ADR-004.
+**We are here → Sprint 2 (Agent Portal & Listing Engine) in progress on branch
+`sprint-2` — Tasks 2.1 and 2.2 code-complete, 2.3–2.7 next.** Database live on
+Supabase; Sprint 1 fully verified locally (23 unit + 12 E2E tests green).
+Sprint 2 so far: 148 unit tests green, typecheck/lint/format clean, production
+build green; DB-backed verification (migrate, dev-server, Playwright) blocked
+in this sandbox by a Supabase pooler connectivity issue — see `BLOCKERS.md` and
+`SPRINT-02.md` for the exact commands to verify once DB access works. Vercel/CI
+deployment criteria deferred per ADR-004.
 
 Legend: ✅ done · 🟡 code-complete, verification blocked (see BLOCKERS.md) ·
 🔵 in progress · ⬜ not started · ⏭ deferred
@@ -34,9 +39,16 @@ deploy criteria ⏭ deferred (ADR-004). Detail: `SPRINT-01.md`.
 
 ## Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine
 
-⬜ 2.1 S3 uploads · ⬜ 2.2 Multi-step listing form · ⬜ 2.3 Moderation queue ·
+🟡 2.1 S3 uploads · 🟡 2.2 Multi-step listing form · ⬜ 2.3 Moderation queue ·
 ⬜ 2.4 Agent profile hub · ⬜ 2.5 Property detail v1 · ⬜ 2.6 Leads & analytics ·
 ⬜ 2.7 Seed 40 listings
+
+2.2 code-complete: `GeocodingService` (mock, real-provider-ready), `ListingService`
+(status machine, listing-limit gate, draft/update/submit), 3 thin Zod-validated
+routes, 5-step wizard at `/agent/listings/**`. 73 new unit tests green (status
+machine, limit, geocode cache, Zod edge cases, service + route handlers).
+Verification blocked on Supabase connectivity in this sandbox — see
+`SPRINT-02.md` for the commands to run once DB access works.
 
 ## Sprint 3 (Weeks 5–6) — Search, Map & Commute
 

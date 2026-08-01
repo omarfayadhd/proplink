@@ -103,6 +103,53 @@ Full schema: `prisma/schema.prisma` (implements the sprint plan's core schema).
   client previews, presign → direct upload, drag-reorder via the pure
   `reorderImages()` helper; exposes `{ url, sortOrder }[]` for forms to persist
   (e.g. against `PropertyImage`).
+- `<SingleFileUploader kinds={[...]}>` — one-file sibling of `ImageUploader` for
+  fields that accept a PDF _or_ an image (EPC certificate, floor plan); resolves
+  the presign `kind` per-file from its mime type since the presign allowlist/size
+  cap is a strict per-kind discriminator.
+
+## Listings (Task 2.2)
+
+- `GeocodingService` (`src/services/maps/`): `GoogleGeocodingService` (real
+  Google Geocoding API, needs `GOOGLE_MAPS_SERVER_KEY`) + `MockGeocodingService`
+  (deterministic lat/lng derived from the postcode string — realistic UK
+  coords by postcode-area prefix, London-ish default for unrecognised areas).
+  Selected by env in `src/services/maps/index.ts`; mock is active while H2.2 is
+  unresolved (`docs/BLOCKERS.md`). `geocodePostcode()` wraps the provider with
+  `cached()` (`src/lib/redis.ts`), keyed by normalised postcode, 30-day TTL.
+- `ListingService` (`src/services/listings/`): `createDraft` / `updateDraft`
+  (DRAFT only) / `submitForReview` / `transitionStatus` — the last enforces the
+  status machine (`statusMachine.ts`: DRAFT → PENDING_REVIEW → LIVE →
+  UNDER_OFFER → SOLD, terminal at SOLD, PENDING_REVIEW → LIVE is ADMIN-only,
+  every other edge is AGENT-or-ADMIN with ownership checked for agents) and, when
+  approving to LIVE, `assertWithinListingLimit` (`Subscription.listingLimit`,
+  default free tier 3, missing subscription = free tier). `ListingServiceError`
+  carries a `code` (`VALIDATION` / `NOT_FOUND` / `FORBIDDEN` /
+  `TRANSITION_INVALID` / `LIMIT_EXCEEDED`) that route handlers map to an HTTP
+  status via `listingErrorStatus()`.
+- Create/update Zod schemas (`src/services/listings/validation.ts`) are
+  deliberately lenient (distress tags/EPC/images/pricing-safeguard all optional)
+  so "Save Draft" works from any step once the DB's NOT NULL columns are
+  satisfiable; `assertReadyForSubmission()` is the separate, stricter gate run
+  by `submitForReview` (≥1 distress tag, pricing-safeguard acknowledged, EPC
+  rating set). Money in, pence out: the wizard collects pounds and the API
+  boundary (`buildListingPayload()`, client-side) converts to integer pence.
+- `POST /api/listings`, `PATCH /api/listings/[id]`, `POST
+/api/listings/[id]/submit` — thin, `requireRole('AGENT')` + Zod, all business
+  logic in the service. On write, `location` is set via raw SQL
+  (`ST_SetSRID(ST_MakePoint(lng, lat), 4326)`); `searchVector` is left to the
+  Sprint 1 trigger, which fires on insert unconditionally and on update only
+  when title/description/city/region/postcode are present in that write's `SET`
+  clause — the wizard always resends the full form state, so every save keeps
+  search current.
+- `Property.pricingSafeguardAckAt` (migration
+  `20260801190000_property_pricing_safeguard`, additive) records the agent's
+  Step 3 confirmation that the asking price may change after survey and that
+  any change will be disclosed to buyers — required before submission.
+- `/agent/listings` (+ `/new`, `/[id]/edit`) — the 5-step wizard
+  (`src/components/listings/ListingWizard.tsx`) is semi-controlled per step
+  (`ImageUploader`'s contract) and calls the three routes above directly by
+  `fetch`; edit is only offered while a listing is DRAFT.
 
 ## Design system
 

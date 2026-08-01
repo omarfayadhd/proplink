@@ -55,10 +55,12 @@ movement · multi-language.
 
 ## Current phase
 
-**Sprint 1 (Weeks 1–2) — Foundation.** Week 1 build tasks are code-complete;
-verification against a live database awaits Supabase credentials (H1.2). See
-`sprints/STATUS.md` for the live tracker and `BLOCKERS.md` for what is waiting on
-human tasks.
+**Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine.** Sprint 1 (Foundation)
+is complete. Tasks 2.1 (S3 uploads) and 2.2 (multi-step listing form) are
+code-complete on branch `sprint-2`; Tasks 2.3–2.7 (moderation queue, agent
+profile hub, property detail page, leads & analytics, 40 seeded listings) are
+next. See `sprints/STATUS.md` for the live tracker and `BLOCKERS.md` for what is
+waiting on human tasks.
 
 **Mode: LOCAL-ONLY development** (2026-07-23, ADR-004) — no GitHub/Vercel/domains/
 AWS/launch tasks for now; each deferred item has a revive trigger in
