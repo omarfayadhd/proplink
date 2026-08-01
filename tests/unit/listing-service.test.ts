@@ -333,6 +333,20 @@ describe("submitForReview", () => {
     );
     expect(result.status).toBe(PropertyStatus.PENDING_REVIEW);
   });
+
+  it("stamps submittedAt when a listing moves to PENDING_REVIEW (Task 2.3 queue ordering)", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.DRAFT }),
+    );
+    mockDb.property.update.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.PENDING_REVIEW }),
+    );
+
+    await submitForReview({ userId: AGENT_USER_ID, propertyId: PROPERTY_ID });
+
+    const data = mockDb.property.update.mock.calls[0][0].data as Record<string, unknown>;
+    expect(data.submittedAt).toBeInstanceOf(Date);
+  });
 });
 
 describe("transitionStatus", () => {
@@ -455,5 +469,63 @@ describe("transitionStatus", () => {
         to: PropertyStatus.LIVE,
       }),
     ).rejects.toBeInstanceOf(ListingServiceError);
+  });
+
+  it("lets an admin reject a PENDING_REVIEW listing back to DRAFT", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.PENDING_REVIEW }),
+    );
+    mockDb.property.update.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.DRAFT }),
+    );
+
+    await transitionStatus({
+      actorUserId: "admin-1",
+      actorRole: Role.ADMIN,
+      propertyId: PROPERTY_ID,
+      to: PropertyStatus.DRAFT,
+    });
+
+    expect(mockDb.property.update).toHaveBeenCalledWith(
+      expect.objectContaining({
+        data: expect.objectContaining({ status: PropertyStatus.DRAFT }),
+      }),
+    );
+  });
+
+  it("forbids an agent from rejecting a listing (PENDING_REVIEW -> DRAFT is admin-only)", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.PENDING_REVIEW }),
+    );
+
+    await expect(
+      transitionStatus({
+        actorUserId: AGENT_USER_ID,
+        actorRole: Role.AGENT,
+        propertyId: PROPERTY_ID,
+        to: PropertyStatus.DRAFT,
+      }),
+    ).rejects.toMatchObject({ code: "TRANSITION_INVALID" });
+  });
+
+  it("merges extraData into the same update call (e.g. rejectionReason on reject)", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.PENDING_REVIEW }),
+    );
+    mockDb.property.update.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.DRAFT }),
+    );
+
+    await transitionStatus({
+      actorUserId: "admin-1",
+      actorRole: Role.ADMIN,
+      propertyId: PROPERTY_ID,
+      to: PropertyStatus.DRAFT,
+      extraData: { rejectionReason: "Missing EPC certificate" },
+    });
+
+    const call = mockDb.property.update.mock.calls[0][0];
+    expect(call.data.status).toBe(PropertyStatus.DRAFT);
+    expect(call.data.rejectionReason).toBe("Missing EPC certificate");
   });
 });

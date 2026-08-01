@@ -257,12 +257,18 @@ export async function submitForReview(params: { userId: string; propertyId: stri
  * Generic status-machine gate, reused by Task 2.3's admin approve/reject
  * route. Agents must own the listing; admins may act on any listing.
  * Approving to LIVE additionally enforces `Subscription.listingLimit`.
+ *
+ * `extraData` lets a caller set additional columns atomically with the status
+ * change — Task 2.3's reject path uses it to persist `rejectionReason` in the
+ * same `UPDATE` as the PENDING_REVIEW -> DRAFT transition, and approve uses it
+ * to clear a stale reason from a previous rejection.
  */
 export async function transitionStatus(params: {
   actorUserId: string;
   actorRole: Role;
   propertyId: string;
   to: PropertyStatus;
+  extraData?: Prisma.PropertyUpdateInput;
 }): Promise<Prisma.PropertyGetPayload<Record<string, never>>> {
   const property = await db.property.findUnique({
     where: { id: params.propertyId },
@@ -288,6 +294,8 @@ export async function transitionStatus(params: {
     data: {
       status: params.to,
       ...(params.to === PropertyStatus.LIVE ? { publishedAt: new Date() } : {}),
+      ...(params.to === PropertyStatus.PENDING_REVIEW ? { submittedAt: new Date() } : {}),
+      ...params.extraData,
     },
   });
 }

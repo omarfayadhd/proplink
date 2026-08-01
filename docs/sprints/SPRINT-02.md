@@ -211,6 +211,201 @@ the `/admin/moderation` UI arrives in Task 2.3. It cleans up its own row in
 | EPC rating required before submission                | ✅ `assertReadyForSubmission`                                                                               |
 | Migrations additive                                  | ✅ single nullable column add                                                                               |
 
-**Sprint 2 in progress. Next: Task 2.3 — Admin moderation queue** (needs the
-approve-to-LIVE route that will finally let the listing-limit gate and the
-PENDING_REVIEW → LIVE transition be driven end-to-end through the browser).
+## Task 2.3 — Admin moderation queue ✅ code-complete (2026-08-01)
+
+### What was built
+
+**`ModerationService`** (`src/services/listings/moderationService.ts`) —
+co-located with `ListingService` rather than `src/services/admin/` because it
+reuses `transitionStatus`/`statusMachine`/`ListingServiceError` directly (it's
+listing-domain logic, not user/admin-shell logic):
+
+- `listPendingListings()` — the `/admin/moderation` queue: `status =
+PENDING_REVIEW`, ordered by `submittedAt` ascending (oldest first), with a
+  dedicated `MODERATION_LISTING_INCLUDE` (adds `agentProfile.user` on top of
+  `ListingService`'s own include, for the notification email).
+- `getListingForModeration(propertyId)` — full-preview fetch for the "Review"
+  modal and for building the notification email; `NOT_FOUND` if missing, no
+  ownership filter (any admin can act on any PENDING_REVIEW listing).
+- `approveListing({ listingId, adminUserId })` — routes the transition
+  **through** `ListingService.transitionStatus` (`to: LIVE`), which already
+  stamps `publishedAt` and re-asserts `assertWithinListingLimit` (the known
+  gap called out in the brief — `transitionStatus` doesn't check
+  `AgentProfile.active` itself, but does still enforce the free-tier cap of 3
+  live listings, which is the requirement that matters for approve); passes
+  `extraData: { rejectionReason: null }` to clear any stale reason from an
+  earlier reject cycle. Then an `AuditLog` row (`LISTING_APPROVED`, Sprint 1
+  pattern via `src/services/admin/audit.ts`) and a fire-and-forget
+  `sendListingApprovedEmail()`.
+- `rejectListing({ listingId, adminUserId, reason })` — validates `reason`
+  non-empty **in the service**, not just at the route's Zod boundary (AGENTS.md:
+  business logic lives in services); `transitionStatus(... to: DRAFT,
+extraData: { rejectionReason: reason })`; `AuditLog` row (`LISTING_REJECTED`);
+  fire-and-forget `sendListingRejectedEmail()` with the reason.
+- Both emails are fire-and-forget (`.catch(console.error)`, not awaited) — same
+  convention as `registerUser`'s verification email (`registration.ts`) — so a
+  mailer outage never turns an already-committed approve/reject into a 500.
+
+**`ListingService`/`statusMachine` extensions** (Task 2.2's files, extended not
+forked):
+
+- `statusMachine.ts` — added `PENDING_REVIEW → DRAFT`, **admin-only**: the one
+  deliberate exception to "no backwards moves" in the otherwise-linear status
+  machine, needed for the reject path (sprint-plan acceptance: "reject → back
+  to DRAFT with reason").
+- `transitionStatus` gained an optional `extraData?: Prisma.PropertyUpdateInput`
+  param, merged into the same `UPDATE` call as the status change — lets
+  approve/reject set `rejectionReason` atomically instead of a second write —
+  and now also stamps `Property.submittedAt` whenever `to === PENDING_REVIEW`
+  (covers both the first submission and a resubmission after a reject).
+  Backwards-compatible: existing callers that don't pass `extraData` are
+  unaffected (verified — all of Task 2.2's `transitionStatus` tests still pass
+  unchanged).
+
+**Schema** — additive migration
+`prisma/migrations/20260801200000_property_moderation_fields/`:
+
+- `Property.rejectionReason` (nullable `TEXT`) — checked `schema.prisma` first
+  per the task brief; no such column existed.
+- `Property.submittedAt` (nullable `TIMESTAMP`) — added because `createdAt` is
+  the wrong "submitted date" for the moderation queue once a rejected listing
+  is edited and resubmitted (the brief's required table column is "submitted
+  date", not "created date"); set by `transitionStatus` itself, the same
+  mechanism as `publishedAt`.
+
+**Routes** (`src/app/api/admin/listings/[id]/**`) — new `/api/admin/**`
+namespace (first admin API routes; Sprint 1's admin mutations used server
+actions instead), both `requireRole('ADMIN')`, Zod → service → respond:
+
+- `POST /api/admin/listings/[id]/approve` → `approveListing`.
+- `POST /api/admin/listings/[id]/reject` → `rejectListing`, body validated by
+  `rejectListingSchema` (`src/services/listings/validation.ts`): `reason`
+  non-empty after `.trim()`.
+
+**UI**
+
+- `/admin/moderation` (`src/app/admin/moderation/page.tsx`) replaces the
+  Sprint 1 placeholder tab — server component, `listPendingListings()`, renders
+  `<ModerationQueue>`.
+- `<ModerationQueue>` (`src/components/admin/ModerationQueue.tsx`, client) —
+  table (Listing/Agent/Asking price/Submitted, `DataTable`) + a per-row
+  "Review" button opening a `<Modal>` with the full preview required by the
+  brief: photos grid, address, bedrooms, asking price, target ROI, `EpcBadge` +
+  EPC certificate link, floor plan link, distress tags (`Badge`s), full
+  description — plus Approve and Reject (reason textarea, required, disabled
+  submit until non-empty) actions. Both actions `fetch` their route, toast the
+  result, and `router.refresh()` (same pattern as `ListingWizard.tsx`) so the
+  queue re-fetches server-side and the acted-on listing drops out of the
+  PENDING_REVIEW list.
+- `/agent/listings` — the DRAFT row now shows `Rejected: <reason>` inline when
+  `rejectionReason` is set, so the persisted reason isn't write-only (the email
+  is the primary channel per the brief, but an agent shouldn't have to dig
+  through their inbox to find out why a listing bounced back).
+
+### Deviations & decisions
+
+1. **`ModerationService` location.** Brief allowed either
+   `src/services/listings/` or `src/services/admin/`; chose the former for
+   cohesion with `transitionStatus`/`statusMachine`/`ListingServiceError` (all
+   in the same directory) — it reuses them directly rather than wrapping them.
+2. **Two additive columns, not one.** The brief only named `rejectionReason`
+   explicitly; `submittedAt` was added because the brief's own required
+   moderation-table column is "submitted date", and no existing column
+   captures that correctly (see schema section above).
+3. **`extraData` on `transitionStatus`** rather than a second `UPDATE` call or
+   a forked reject-specific transition function — keeps the status change and
+   `rejectionReason` atomic in one write, and is fully backwards-compatible
+   with Task 2.2's existing callers/tests.
+4. **Reason validated in the service, not just Zod.** Defence in depth per
+   AGENTS.md ("business logic lives in services") — `rejectListing` throws
+   `ListingServiceError` (`VALIDATION`) on a blank/whitespace-only reason even
+   if called directly, not only via the Zod-guarded route.
+5. **Fire-and-forget notification emails.** Matches the existing
+   `requestEmailVerification` convention in `registration.ts` — an approve/
+   reject that already committed to the DB must not become a 500 because the
+   (currently mock/console) mailer had a bad day.
+6. **`rejectionReason` surfaced on `/agent/listings`.** Not explicitly required
+   by the brief, but a persisted, agent-facing field that only ever appears in
+   an admin email would be a real usability gap; the addition is a single
+   conditional line, no new route/service needed (the field was already
+   returned by `listListingsForAgentUser`'s unfiltered `findMany`).
+
+### Test commands run
+
+```
+npm run typecheck    → clean (tsc --noEmit, no errors)
+npm run lint         → clean (eslint, no errors/warnings)
+npm run test         → 22 files, 184 tests passed (0 failed) — 36 new for this task:
+                        listing-status-machine (+2: admin reject edge allowed/denied),
+                        listing-service (+4: submittedAt stamp, admin reject transition,
+                          agent-forbidden-from-reject, extraData merge),
+                        moderation-service (11: queue query, 404, approve incl. limit
+                          gate + wrong-status + not-found, reject incl. blank reason +
+                          trimming + wrong-status + not-found),
+                        admin-listings-approve-route (5: 401/403/200/409/404),
+                        admin-listings-reject-route (9: 401/403/invalid-JSON/blank
+                          reason/whitespace reason/missing reason/200/404/409)
+npm run format:check → clean for every file this task touches; remaining
+                        warnings are pre-existing files outside this task's
+                        scope (task-2.*-brief.md)
+npm run build        → succeeded — new routes present: /admin/moderation,
+                        /api/admin/listings/[id]/approve,
+                        /api/admin/listings/[id]/reject (all ƒ dynamic,
+                        consistent with the rest of the request-scoped tree)
+```
+
+TDD followed throughout: `statusMachine`'s new edge, `transitionStatus`'s
+`extraData`/`submittedAt` extension, `moderationService.ts`, and both new
+routes were written as failing tests first (confirmed red via `Cannot find
+module`/`Cannot find export`), then implemented green.
+
+`npx prisma generate` (schema-only, no DB needed) was used to refresh the
+Prisma client types for the two new `Property` columns — same approach Task
+2.2 used for `pricingSafeguardAckAt`.
+
+**DB-backed verification blocked in this sandbox** — same pre-existing
+constraint Tasks 2.1/2.2 hit: no outbound reachability to the Supabase pooler
+from this shell, so `db:migrate` and the Playwright spec below were not run
+here (per this task's explicit instructions, not attempted).
+
+**Commands the controller should run once DB access works, in order:**
+
+```
+npm run db:generate                      # refresh Prisma client (safe anytime)
+npm run db:migrate                       # applies 20260801200000_property_moderation_fields
+npm run dev                              # or npm run build && npm run start
+npx playwright test tests/e2e/admin-moderation.spec.ts
+```
+
+The spec (`tests/e2e/admin-moderation.spec.ts`) drives the Task 2.2 wizard
+(same steps as `agent-listing-wizard.spec.ts`) as `agent@proplink.test` to get
+a fresh PENDING_REVIEW listing, then:
+
+- **Approve test**: logs in as `admin@proplink.test`, opens `/admin/moderation`,
+  clicks "Review" then "Approve"; asserts the listing drops out of the queue,
+  a direct DB query shows `status = LIVE` + `publishedAt` set + one
+  `LISTING_APPROVED` AuditLog row, then logs back in as the agent and asserts
+  the `LIVE` badge is visible on `/agent/listings` (the sprint-plan acceptance
+  criterion).
+- **Reject test**: same setup, fills the rejection-reason textarea, clicks
+  "Reject"; asserts the listing drops out of the queue, `status = DRAFT` +
+  `rejectionReason` matches + one `LISTING_REJECTED` AuditLog row, then asserts
+  the agent sees the `Rejected: <reason>` note on `/agent/listings`.
+
+Both tests clean up their own rows (`Property` + `AuditLog`) in `afterAll`,
+same convention as the Sprint 1/2 specs.
+
+## Checkpoint state (Task 2.3)
+
+| Criterion                                                  | State                                                                                              |
+| ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `/admin/moderation` real page (table + full preview)       | ✅                                                                                                 |
+| Approve → LIVE + `publishedAt` + AuditLog + agent email    | ✅ unit-tested; 🟡 E2E written, blocked on DB access                                               |
+| Reject → DRAFT + reason persisted + AuditLog + agent email | ✅ unit-tested; 🟡 E2E written, blocked on DB access                                               |
+| Listing-limit re-asserted on approve                       | ✅ (`transitionStatus`'s existing `assertWithinListingLimit`, unit-tested via `moderationService`) |
+| Reject requires non-empty reason (Zod + service)           | ✅                                                                                                 |
+| Routes thin + Zod; `requireRole('ADMIN')` server-side      | ✅                                                                                                 |
+| Business logic in `/src/services`                          | ✅                                                                                                 |
+| Migrations additive                                        | ✅ two nullable column adds                                                                        |
+
+**Sprint 2 in progress. Next: Task 2.4 — Agent profile & credibility hub.**

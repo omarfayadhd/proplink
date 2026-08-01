@@ -225,7 +225,14 @@ model Property {
   /// Maintained by trigger in migration; GIN-indexed.
   searchVector   Unsupported("tsvector")?
   createdAt      DateTime       @default(now())
+  /// Set by `transitionStatus` whenever a listing moves to PENDING_REVIEW —
+  /// distinct from `createdAt` because a resubmission after a Task 2.3
+  /// rejection must show the *new* submission date in the moderation queue.
+  submittedAt    DateTime?
   publishedAt    DateTime?
+  /// Admin's reason (Task 2.3 moderation) for the most recent reject back to
+  /// DRAFT; cleared on approval. Null until a listing has been rejected once.
+  rejectionReason String?
 
   agentProfile      AgentProfile          @relation(fields: [agentProfileId], references: [id])
   distressTags      PropertyDistressTag[]

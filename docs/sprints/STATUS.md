@@ -6,9 +6,9 @@
 > Sprint-level progress sheet (status/remarks/comments): `SPRINT-TRACKER.md`.
 
 **We are here → Sprint 2 (Agent Portal & Listing Engine) in progress on branch
-`sprint-2` — Tasks 2.1 and 2.2 code-complete, 2.3–2.7 next.** Database live on
-Supabase; Sprint 1 fully verified locally (23 unit + 12 E2E tests green).
-Sprint 2 so far: 148 unit tests green, typecheck/lint/format clean, production
+`sprint-2` — Tasks 2.1, 2.2 and 2.3 code-complete, 2.4–2.7 next.** Database live
+on Supabase; Sprint 1 fully verified locally (23 unit + 12 E2E tests green).
+Sprint 2 so far: 184 unit tests green, typecheck/lint/format clean, production
 build green; DB-backed verification (migrate, dev-server, Playwright) blocked
 in this sandbox by a Supabase pooler connectivity issue — see `BLOCKERS.md` and
 `SPRINT-02.md` for the exact commands to verify once DB access works. Vercel/CI
@@ -39,7 +39,7 @@ deploy criteria ⏭ deferred (ADR-004). Detail: `SPRINT-01.md`.
 
 ## Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine
 
-🟡 2.1 S3 uploads · 🟡 2.2 Multi-step listing form · ⬜ 2.3 Moderation queue ·
+🟡 2.1 S3 uploads · 🟡 2.2 Multi-step listing form · 🟡 2.3 Moderation queue ·
 ⬜ 2.4 Agent profile hub · ⬜ 2.5 Property detail v1 · ⬜ 2.6 Leads & analytics ·
 ⬜ 2.7 Seed 40 listings
 
@@ -49,6 +49,18 @@ routes, 5-step wizard at `/agent/listings/**`. 73 new unit tests green (status
 machine, limit, geocode cache, Zod edge cases, service + route handlers).
 Verification blocked on Supabase connectivity in this sandbox — see
 `SPRINT-02.md` for the commands to run once DB access works.
+
+2.3 code-complete: `ModerationService` (`src/services/listings/moderationService.ts`)
+— approve (LIVE + `publishedAt`, re-asserts the free-tier listing limit, clears
+any stale rejection reason, AuditLog, agent email) and reject (PENDING_REVIEW
+→ DRAFT — a new admin-only edge added to the status machine — persists
+`rejectionReason`, AuditLog, agent email with the reason). Two additive
+columns (`Property.rejectionReason`, `Property.submittedAt`). Real
+`/admin/moderation` page (table + full-preview "Review" modal, Approve/Reject)
+replaces the Sprint 1 placeholder. 36 new unit tests green (status machine,
+`transitionStatus` extension, service, both routes). Playwright spec written
+(`tests/e2e/admin-moderation.spec.ts`); DB-backed verification blocked the same
+way as 2.1/2.2 — see `SPRINT-02.md`.
 
 ## Sprint 3 (Weeks 5–6) — Search, Map & Commute
 

@@ -89,6 +89,26 @@ describe("canTransitionListingStatus", () => {
     ).toBe(false);
   });
 
+  it("allows an admin to reject a pending listing back to DRAFT (Task 2.3)", () => {
+    expect(
+      canTransitionListingStatus(
+        PropertyStatus.PENDING_REVIEW,
+        PropertyStatus.DRAFT,
+        Role.ADMIN,
+      ),
+    ).toBe(true);
+  });
+
+  it("does NOT allow an agent to reject a pending listing back to DRAFT", () => {
+    expect(
+      canTransitionListingStatus(
+        PropertyStatus.PENDING_REVIEW,
+        PropertyStatus.DRAFT,
+        Role.AGENT,
+      ),
+    ).toBe(false);
+  });
+
   it("no role (BUYER/INVESTOR) can drive any listing transition", () => {
     expect(
       canTransitionListingStatus(

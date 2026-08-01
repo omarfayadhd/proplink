@@ -49,6 +49,11 @@ export default async function AgentListingsPage() {
                 <div className="text-xs text-muted">
                   {p.city}, {p.postcode}
                 </div>
+                {p.status === "DRAFT" && p.rejectionReason && (
+                  <div className="mt-1 text-xs font-medium text-danger">
+                    Rejected: {p.rejectionReason}
+                  </div>
+                )}
               </div>
             ),
           },

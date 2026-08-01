@@ -71,8 +71,14 @@ export const createListingSchema = listingFieldsSchema.extend({
 
 export const updateListingSchema = listingFieldsSchema.partial();
 
+/** Task 2.3 admin moderation reject route — non-empty reason (AGENTS.md: Zod at the route boundary). */
+export const rejectListingSchema = z.object({
+  reason: z.string().trim().min(1, "A rejection reason is required"),
+});
+
 export type CreateListingInput = z.infer<typeof createListingSchema>;
 export type UpdateListingInput = z.infer<typeof updateListingSchema>;
+export type RejectListingInput = z.infer<typeof rejectListingSchema>;
 
 /**
  * Domain-level "is this listing complete enough to submit" gate — separate

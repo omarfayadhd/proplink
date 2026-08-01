@@ -69,3 +69,25 @@ export async function sendPasswordResetEmail(to: string, token: string) {
     text: `A password reset was requested for this address.\n\nSet a new password here (link valid 1 hour):\n${url}\n\nIf this wasn't you, ignore this email — your password is unchanged.`,
   });
 }
+
+// Task 2.3 — admin moderation notifications.
+
+export async function sendListingApprovedEmail(to: string, listingTitle: string) {
+  await mailer.send({
+    to,
+    subject: `Your listing "${listingTitle}" is now live on PropLink UK`,
+    text: `Good news — your listing "${listingTitle}" has been approved and is now live on PropLink UK.`,
+  });
+}
+
+export async function sendListingRejectedEmail(
+  to: string,
+  listingTitle: string,
+  reason: string,
+) {
+  await mailer.send({
+    to,
+    subject: `Your listing "${listingTitle}" needs changes before it can go live`,
+    text: `Your listing "${listingTitle}" was reviewed and could not be approved as submitted.\n\nReason: ${reason}\n\nPlease make the requested changes and resubmit it for review from your agent portal.`,
+  });
+}

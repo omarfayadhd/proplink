@@ -121,12 +121,18 @@ Full schema: `prisma/schema.prisma` (implements the sprint plan's core schema).
   (DRAFT only) / `submitForReview` / `transitionStatus` — the last enforces the
   status machine (`statusMachine.ts`: DRAFT → PENDING_REVIEW → LIVE →
   UNDER_OFFER → SOLD, terminal at SOLD, PENDING_REVIEW → LIVE is ADMIN-only,
-  every other edge is AGENT-or-ADMIN with ownership checked for agents) and, when
-  approving to LIVE, `assertWithinListingLimit` (`Subscription.listingLimit`,
-  default free tier 3, missing subscription = free tier). `ListingServiceError`
-  carries a `code` (`VALIDATION` / `NOT_FOUND` / `FORBIDDEN` /
-  `TRANSITION_INVALID` / `LIMIT_EXCEEDED`) that route handlers map to an HTTP
-  status via `listingErrorStatus()`.
+  every other edge is AGENT-or-ADMIN with ownership checked for agents; one
+  admin-only backwards edge, PENDING_REVIEW → DRAFT, was added in Task 2.3 for
+  the moderation _reject_ path) and, when approving to LIVE,
+  `assertWithinListingLimit` (`Subscription.listingLimit`, default free tier 3,
+  missing subscription = free tier). `ListingServiceError` carries a `code`
+  (`VALIDATION` / `NOT_FOUND` / `FORBIDDEN` / `TRANSITION_INVALID` /
+  `LIMIT_EXCEEDED`) that route handlers map to an HTTP status via
+  `listingErrorStatus()`. `transitionStatus` also takes an optional
+  `extraData: Prisma.PropertyUpdateInput` (Task 2.3) so a caller can set extra
+  columns atomically with the status change — e.g. `rejectionReason` on
+  reject — and stamps `Property.submittedAt` whenever `to === PENDING_REVIEW`
+  (first submission or a resubmission after a reject).
 - Create/update Zod schemas (`src/services/listings/validation.ts`) are
   deliberately lenient (distress tags/EPC/images/pricing-safeguard all optional)
   so "Save Draft" works from any step once the DB's NOT NULL columns are
@@ -150,6 +156,53 @@ Full schema: `prisma/schema.prisma` (implements the sprint plan's core schema).
   (`src/components/listings/ListingWizard.tsx`) is semi-controlled per step
   (`ImageUploader`'s contract) and calls the three routes above directly by
   `fetch`; edit is only offered while a listing is DRAFT.
+
+## Admin moderation (Task 2.3)
+
+- `ModerationService` (`src/services/listings/moderationService.ts`) —
+  co-located with `ListingService` rather than `src/services/admin/` because it
+  reuses `transitionStatus`/`statusMachine`/`ListingServiceError` directly and
+  is really listing-domain logic, not user/admin-shell logic. Its own
+  `MODERATION_LISTING_INCLUDE` adds `agentProfile.user` (for the notification
+  email) on top of `ListingService`'s `LISTING_INCLUDE`.
+  - `listPendingListings()` — `/admin/moderation` queue, `status =
+PENDING_REVIEW`, ordered by `submittedAt` ascending (oldest submission first).
+  - `getListingForModeration(propertyId)` — full-preview fetch, throws
+    `NOT_FOUND` (code) if missing; no ownership filter (any admin, any listing).
+  - `approveListing({ listingId, adminUserId })` — `transitionStatus(... to:
+LIVE, extraData: { rejectionReason: null })` (sets `publishedAt`, re-asserts
+    `assertWithinListingLimit`, clears any stale reason from an earlier reject),
+    then an `AuditLog` row (`action: "LISTING_APPROVED"`, Sprint 1 pattern via
+    `src/services/admin/audit.ts`), then `sendListingApprovedEmail()`.
+  - `rejectListing({ listingId, adminUserId, reason })` — validates `reason`
+    non-empty server-side (defence in depth beyond the route's Zod check, per
+    AGENTS.md "business logic lives in services"), `transitionStatus(... to:
+DRAFT, extraData: { rejectionReason: reason })`, an `AuditLog` row (`action:
+"LISTING_REJECTED"`), then `sendListingRejectedEmail()`.
+  - Both notification emails are **fire-and-forget** (`.catch(console.error)`,
+    not awaited) — same convention as `registerUser`'s verification email — so
+    a mailer outage never turns an already-committed approve/reject into a 500.
+- `Property.rejectionReason` (nullable `TEXT`) and `Property.submittedAt`
+  (nullable `TIMESTAMP`) — migration
+  `20260801200000_property_moderation_fields`, additive. Neither column existed
+  before Task 2.3 (checked `prisma/schema.prisma` first, per the task brief).
+  `submittedAt` exists because `createdAt` is the wrong "submitted date" once a
+  rejected listing is edited and resubmitted; it's set by `transitionStatus`
+  itself (same mechanism as `publishedAt`), not by `ModerationService`.
+- `POST /api/admin/listings/[id]/approve`, `POST
+/api/admin/listings/[id]/reject` — thin, `requireRole('ADMIN')` + Zod
+  (`rejectListingSchema`: `reason` non-empty after `.trim()`), all business
+  logic in `ModerationService`.
+- `/admin/moderation` — server component (`listPendingListings()`) rendering
+  `<ModerationQueue>` (`src/components/admin/ModerationQueue.tsx`, client):
+  table (title/agent/price/submitted) + a per-row "Review" modal with the full
+  preview (photos, address, bedrooms, price, target ROI, EPC badge + cert
+  link, floor plan link, distress tags, description) and Approve / Reject
+  (reason textarea, required) actions; both call their route by `fetch` then
+  `router.refresh()`. `/agent/listings` also surfaces a rejected listing's
+  `rejectionReason` inline on its DRAFT row so the reason isn't write-only
+  (email is the primary channel, but the agent shouldn't have to dig through
+  their inbox to see why a resubmission is needed).
 
 ## Design system
 

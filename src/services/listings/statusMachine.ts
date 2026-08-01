@@ -8,6 +8,12 @@ import { ListingServiceError } from "@/services/listings/errors";
  * role(s) allowed to drive it — agents own everything except the
  * PENDING_REVIEW -> LIVE approval, which is admin-only (AGENTS.md non-
  * negotiable: only admin approves a listing to LIVE).
+ *
+ * One deliberate exception to "no backwards moves": PENDING_REVIEW -> DRAFT,
+ * admin-only, is the moderation *reject* path (Task 2.3 sprint-plan
+ * acceptance: "reject -> back to DRAFT with reason") — sends a submitted
+ * listing back to the agent with `Property.rejectionReason` set so they can
+ * fix it up and resubmit.
  */
 const LISTING_STATUS_TRANSITIONS: Record<
   PropertyStatus,
@@ -18,6 +24,7 @@ const LISTING_STATUS_TRANSITIONS: Record<
   },
   [PropertyStatus.PENDING_REVIEW]: {
     [PropertyStatus.LIVE]: [Role.ADMIN],
+    [PropertyStatus.DRAFT]: [Role.ADMIN],
   },
   [PropertyStatus.LIVE]: {
     [PropertyStatus.UNDER_OFFER]: [Role.AGENT, Role.ADMIN],
