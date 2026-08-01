@@ -67,7 +67,12 @@ test("agent completes the 5-step wizard and submits for review", async ({ page }
   await page.getByRole("button", { name: "Submit for review" }).click();
 
   await page.waitForURL("**/agent/listings");
-  await expect(page.getByRole("status")).toContainText("submitted for review");
+  // Scoped: the "Draft saved" toast from the mid-flow Save Draft click above
+  // can still be visible (4s auto-dismiss) when this one fires, which trips
+  // Playwright's strict-mode check on a bare getByRole("status").
+  await expect(
+    page.getByRole("status").filter({ hasText: "submitted for review" }),
+  ).toBeVisible();
 
   const [property] = await q<{ status: string }>(
     `SELECT status FROM "Property" WHERE title = $1`,
