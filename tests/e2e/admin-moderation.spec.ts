@@ -7,12 +7,35 @@ test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
 const RUN = `w2mod-${Date.now()}`;
 
+/**
+ * This spec is the first to re-login mid-test in the same browser context
+ * (agent -> admin -> agent), unlike week2-admin.spec.ts/agent-listing-wizard.spec.ts
+ * which each log in exactly once. Two hardenings over the simple
+ * fill+click+waitForURL used elsewhere:
+ *  1. `clearCookies()` first — a clean slate before every sign-in, so a stale
+ *     session/CSRF cookie from the *previous* login can't race with or shadow
+ *     the new one.
+ *  2. A deterministic post-condition instead of a loose waitForURL match on
+ *     the home route: the login page calls `signIn({ redirect: false })` then does a
+ *     client-side `router.push("/")`, so a URL-based wait can resolve before
+ *     the session cookie is actually live — or, on a slow/raced hydration,
+ *     before the click's `onSubmit` handler even ran. Polling
+ *     `/api/auth/session` for the expected email is the actual invariant we
+ *     need ("this call ends with an X session or throws"), and — unlike a URL
+ *     match — it can't be satisfied by a stale, pre-existing session.
+ */
 async function login(page: Page, email: string, password: string) {
+  await page.context().clearCookies();
   await page.goto("/login");
   await page.fill("#email", email);
   await page.fill("#password", password);
   await page.click("button[type=submit]");
-  await page.waitForURL("**/");
+
+  await expect(async () => {
+    const res = await page.request.get("/api/auth/session");
+    const body = await res.json().catch(() => null);
+    expect(body?.user?.email).toBe(email);
+  }).toPass({ timeout: 10_000 });
 }
 
 /** Drives the Task 2.2 wizard (same steps as agent-listing-wizard.spec.ts) to PENDING_REVIEW. */
