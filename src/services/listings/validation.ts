@@ -3,7 +3,14 @@ import { DistressTag, EpcRating, PropertyType } from "@/generated/prisma/enums";
 import { ListingServiceError } from "@/services/listings/errors";
 import { isValidUkPostcode } from "@/services/maps";
 
-const MAX_ASKING_PRICE_PENCE = 999_999_999_00; // ~£1bn ceiling — sanity cap, not a real limit
+// £20,000,000 in pence. Business-sensible ceiling for this market (large
+// commercial/land distressed assets included) that also stays comfortably
+// inside Postgres' int4 range backing `Property.askingPriceGBP`
+// (max 2,147,483,647 pence ≈ £21.47m) — a higher Zod cap would let a legal
+// price pass validation and then blow up in Prisma with "integer out of
+// range" (an unhandled 500, not a clean ListingServiceError). Raising this
+// requires widening the DB column too; don't change one without the other.
+export const MAX_ASKING_PRICE_PENCE = 2_000_000_000; // £20,000,000
 const MAX_ROI_PCT = 1000;
 const MAX_IMAGES = 20;
 

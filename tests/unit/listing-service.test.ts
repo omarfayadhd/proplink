@@ -118,6 +118,16 @@ describe("createDraft", () => {
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
   });
 
+  it("rejects when the owned agent profile is inactive", async () => {
+    mockDb.agentProfile.findUnique.mockResolvedValue(ownedProfile({ active: false }));
+
+    await expect(
+      createDraft({ userId: AGENT_USER_ID, input: validCreateInput }),
+    ).rejects.toMatchObject({ code: "PROFILE_INACTIVE" });
+
+    expect(mockDb.property.create).not.toHaveBeenCalled();
+  });
+
   it("creates the Property as DRAFT, geocodes the postcode, and sets the PostGIS location", async () => {
     mockDb.agentProfile.findUnique.mockResolvedValue(ownedProfile());
     mockDb.property.create.mockResolvedValue(
@@ -189,6 +199,22 @@ describe("updateDraft", () => {
     await expect(
       updateDraft({ userId: AGENT_USER_ID, propertyId: PROPERTY_ID, input: {} }),
     ).rejects.toMatchObject({ code: "FORBIDDEN" });
+  });
+
+  it("rejects editing a listing whose owning agent profile is inactive", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ agentProfile: ownedProfile({ active: false }) }),
+    );
+
+    await expect(
+      updateDraft({
+        userId: AGENT_USER_ID,
+        propertyId: PROPERTY_ID,
+        input: { title: "x" },
+      }),
+    ).rejects.toMatchObject({ code: "PROFILE_INACTIVE" });
+
+    expect(mockDb.property.update).not.toHaveBeenCalled();
   });
 
   it("refuses to edit a listing that is no longer DRAFT", async () => {
@@ -272,6 +298,18 @@ describe("submitForReview", () => {
     await expect(
       submitForReview({ userId: AGENT_USER_ID, propertyId: PROPERTY_ID }),
     ).rejects.toMatchObject({ code: "VALIDATION" });
+  });
+
+  it("blocks submission when the owning agent profile is inactive", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ agentProfile: ownedProfile({ active: false }) }),
+    );
+
+    await expect(
+      submitForReview({ userId: AGENT_USER_ID, propertyId: PROPERTY_ID }),
+    ).rejects.toMatchObject({ code: "PROFILE_INACTIVE" });
+
+    expect(mockDb.property.update).not.toHaveBeenCalled();
   });
 
   it("moves a complete DRAFT listing to PENDING_REVIEW", async () => {

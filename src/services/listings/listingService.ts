@@ -30,6 +30,12 @@ async function findOwnedAgentProfile(userId: string, agentProfileId: string) {
       "FORBIDDEN",
     );
   }
+  if (!profile.active) {
+    throw new ListingServiceError(
+      "This agency profile is inactive — reactivate it before creating listings",
+      "PROFILE_INACTIVE",
+    );
+  }
   return profile;
 }
 
@@ -44,6 +50,12 @@ async function findOwnedListing(
   if (!property) throw new ListingServiceError("Listing not found", "NOT_FOUND");
   if (property.agentProfile.userId !== userId) {
     throw new ListingServiceError("You do not own this listing", "FORBIDDEN");
+  }
+  if (!property.agentProfile.active) {
+    throw new ListingServiceError(
+      "This listing's agency profile is inactive — reactivate it to continue",
+      "PROFILE_INACTIVE",
+    );
   }
   return property;
 }

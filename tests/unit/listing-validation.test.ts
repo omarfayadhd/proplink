@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
+  MAX_ASKING_PRICE_PENCE,
   assertReadyForSubmission,
   createListingSchema,
   updateListingSchema,
@@ -41,6 +42,22 @@ describe("createListingSchema", () => {
     expect(
       createListingSchema.safeParse({ ...validDraft, askingPriceGBP: -500 }).success,
     ).toBe(false);
+  });
+
+  it("accepts askingPriceGBP exactly at the £20,000,000 cap (stays within Postgres int4)", () => {
+    const result = createListingSchema.safeParse({
+      ...validDraft,
+      askingPriceGBP: MAX_ASKING_PRICE_PENCE,
+    });
+    expect(result.success).toBe(true);
+  });
+
+  it("cleanly rejects askingPriceGBP above the cap instead of overflowing the DB int4 column", () => {
+    const result = createListingSchema.safeParse({
+      ...validDraft,
+      askingPriceGBP: MAX_ASKING_PRICE_PENCE + 1,
+    });
+    expect(result.success).toBe(false);
   });
 
   it("accepts targetRoiPct at the 0 and 1000 bounds", () => {
