@@ -217,6 +217,11 @@ model Property {
   epcRating      EpcRating?
   epcCertUrl     String?
   floorPlanUrl   String?
+  /// Agent's confirmation (Task 2.2 wizard step 3) that the seller has been
+  /// advised the asking price may be revised after survey findings, and that
+  /// any change will be disclosed to buyers before offers are accepted.
+  /// Required before submitForReview; null while still drafting.
+  pricingSafeguardAckAt DateTime?
   /// Maintained by trigger in migration; GIN-indexed.
   searchVector   Unsupported("tsvector")?
   createdAt      DateTime       @default(now())
