@@ -13,6 +13,22 @@ export function SiteFooter() {
           collected on-platform. AI valuations are statistical projections and do not
           substitute for RICS-qualified surveys.
         </p>
+        {/* CC BY requires visible credit wherever the work is shown. Two of the
+            landing page's category photographs carry that licence, so the credit
+            is global rather than page-scoped. Full provenance for every
+            committed asset: `public/marketing/categories/LICENSES.md`. */}
+        <p className="text-xs text-white/60">
+          Category photography by Karen Roe and Chris Samuel, licensed{" "}
+          <a
+            href="https://creativecommons.org/licenses/by/2.0/"
+            rel="noopener noreferrer license"
+            target="_blank"
+            className="underline hover:text-white"
+          >
+            CC BY 2.0
+          </a>
+          . Placeholder imagery, not PropLink listings.
+        </p>
         <p className="text-xs">
           <Link href="/privacy" className="underline hover:text-white">
             Privacy

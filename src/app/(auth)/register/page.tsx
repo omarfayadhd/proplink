@@ -1,6 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import {
+  AUTH_BUTTON,
+  AUTH_INPUT,
+  AUTH_LABEL,
+  AuthShell,
+} from "@/components/auth/AuthShell";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { signIn } from "next-auth/react";
@@ -45,7 +51,10 @@ export default function RegisterPage() {
         password: form.password,
         redirect: false,
       });
-      router.push(login?.error ? "/login" : "/");
+      // `/portal` resolves the new account's role server-side and forwards to
+      // its dashboard, rather than dropping a fresh user on the landing page
+      // with no route into their own portal (ADR-016).
+      router.push(login?.error ? "/login" : "/portal");
       router.refresh();
     } finally {
       setSubmitting(false);
@@ -53,132 +62,143 @@ export default function RegisterPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center bg-surface px-6 py-12">
-      <div className="w-full max-w-md rounded-lg border border-line bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-primary">Create your account</h1>
-        <p className="mt-1 text-sm text-muted">
-          Join PropLink UK as a buyer, investor or agent.
-        </p>
-
-        <form onSubmit={onSubmit} className="mt-6 space-y-4">
-          <div>
-            <label htmlFor="name" className="block text-sm font-medium">
-              Full name
-            </label>
-            <input
-              id="name"
-              type="text"
-              required
-              value={form.name}
-              onChange={(e) => setForm({ ...form, name: e.target.value })}
-              className="mt-1 w-full rounded-md border border-line px-3 py-2 focus:border-accent focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="email" className="block text-sm font-medium">
-              Email
-            </label>
-            <input
-              id="email"
-              type="email"
-              required
-              value={form.email}
-              onChange={(e) => setForm({ ...form, email: e.target.value })}
-              className="mt-1 w-full rounded-md border border-line px-3 py-2 focus:border-accent focus:outline-none"
-            />
-          </div>
-
-          <div>
-            <label htmlFor="password" className="block text-sm font-medium">
-              Password
-            </label>
-            <input
-              id="password"
-              type="password"
-              required
-              minLength={8}
-              value={form.password}
-              onChange={(e) => setForm({ ...form, password: e.target.value })}
-              className="mt-1 w-full rounded-md border border-line px-3 py-2 focus:border-accent focus:outline-none"
-            />
-            <p className="mt-1 text-xs text-muted">
-              At least 8 characters, with a letter and a number.
-            </p>
-          </div>
-
-          <fieldset>
-            <legend className="text-sm font-medium">I am a…</legend>
-            <div className="mt-2 grid grid-cols-3 gap-2">
-              {roles.map((r) => (
-                <label
-                  key={r.value}
-                  className={`cursor-pointer rounded-md border p-2 text-center text-sm ${
-                    form.role === r.value
-                      ? "border-accent bg-pale font-semibold text-secondary"
-                      : "border-line"
-                  }`}
-                >
-                  <input
-                    type="radio"
-                    name="role"
-                    value={r.value}
-                    checked={form.role === r.value}
-                    onChange={() => setForm({ ...form, role: r.value })}
-                    className="sr-only"
-                  />
-                  {r.label}
-                  <span className="mt-1 block text-xs font-normal text-muted">
-                    {r.hint}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </fieldset>
-
-          <label className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              required
-              checked={form.gdprConsent}
-              onChange={(e) => setForm({ ...form, gdprConsent: e.target.checked })}
-              className="mt-1"
-            />
-            <span>
-              I agree to the{" "}
-              <Link href="/privacy" className="text-accent underline">
-                privacy policy
-              </Link>{" "}
-              and{" "}
-              <Link href="/terms" className="text-accent underline">
-                terms of service
-              </Link>
-              .
-            </span>
+    <AuthShell
+      title="Create your account"
+      subtitle="Join PropLink UK as a buyer, investor or agent."
+      aside={{
+        headline: (
+          <>
+            Distressed property,
+            <span className="mt-1 block font-light">end to end</span>
+          </>
+        ),
+        points: [
+          "Buyers and investors: search, enquire, book viewings and make offers",
+          "Agents: list stock with disclosed defects and build a verified record",
+          "Every listing carries its EPC rating and target refurbishment ROI",
+        ],
+      }}
+    >
+      <form onSubmit={onSubmit} className="space-y-5">
+        <div>
+          <label htmlFor="name" className={AUTH_LABEL}>
+            Full name
           </label>
+          <input
+            id="name"
+            type="text"
+            required
+            value={form.name}
+            onChange={(e) => setForm({ ...form, name: e.target.value })}
+            className={AUTH_INPUT}
+          />
+        </div>
 
-          {error && (
-            <p role="alert" className="text-sm font-medium text-danger">
-              {error}
-            </p>
-          )}
+        <div>
+          <label htmlFor="email" className={AUTH_LABEL}>
+            Email
+          </label>
+          <input
+            id="email"
+            type="email"
+            required
+            value={form.email}
+            onChange={(e) => setForm({ ...form, email: e.target.value })}
+            className={AUTH_INPUT}
+          />
+        </div>
 
-          <button
-            type="submit"
-            disabled={submitting}
-            className="w-full rounded-md bg-accent py-2.5 font-semibold text-white hover:opacity-90 disabled:opacity-50"
+        <div>
+          <label htmlFor="password" className={AUTH_LABEL}>
+            Password
+          </label>
+          <input
+            id="password"
+            type="password"
+            required
+            minLength={8}
+            value={form.password}
+            onChange={(e) => setForm({ ...form, password: e.target.value })}
+            className={AUTH_INPUT}
+          />
+          <p className="mt-1 text-xs text-muted">
+            At least 8 characters, with a letter and a number.
+          </p>
+        </div>
+
+        <fieldset>
+          <legend className={AUTH_LABEL}>I am a…</legend>
+          <div className="mt-2 grid grid-cols-3 gap-2.5">
+            {roles.map((r) => (
+              <label
+                key={r.value}
+                className={`cursor-pointer rounded-xl border p-3 text-center text-sm transition-colors ${
+                  form.role === r.value
+                    ? "border-accent bg-pale font-semibold text-secondary"
+                    : "border-line bg-white hover:border-secondary"
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="role"
+                  value={r.value}
+                  checked={form.role === r.value}
+                  onChange={() => setForm({ ...form, role: r.value })}
+                  className="sr-only"
+                />
+                {r.label}
+                <span className="mt-1 block text-xs font-normal text-muted">
+                  {r.hint}
+                </span>
+              </label>
+            ))}
+          </div>
+        </fieldset>
+
+        <label className="flex items-start gap-2 text-sm">
+          <input
+            type="checkbox"
+            required
+            checked={form.gdprConsent}
+            onChange={(e) => setForm({ ...form, gdprConsent: e.target.checked })}
+            className="mt-1"
+          />
+          <span>
+            I agree to the{" "}
+            <Link href="/privacy" className="text-accent underline">
+              privacy policy
+            </Link>{" "}
+            and{" "}
+            <Link href="/terms" className="text-accent underline">
+              terms of service
+            </Link>
+            .
+          </span>
+        </label>
+
+        {error && (
+          <p
+            role="alert"
+            className="rounded-xl bg-danger/10 px-4 py-3 text-sm font-medium text-danger"
           >
-            {submitting ? "Creating account…" : "Create account"}
-          </button>
-        </form>
+            {error}
+          </p>
+        )}
 
-        <p className="mt-4 text-center text-sm text-muted">
-          Already registered?{" "}
-          <Link href="/login" className="text-accent underline">
-            Log in
-          </Link>
-        </p>
-      </div>
-    </main>
+        <button type="submit" disabled={submitting} className={AUTH_BUTTON}>
+          {submitting ? "Creating account…" : "Create account"}
+        </button>
+      </form>
+
+      <p className="mt-8 text-center text-sm text-muted">
+        Already registered?{" "}
+        <Link
+          href="/login"
+          className="font-semibold text-primary underline decoration-line underline-offset-4 hover:decoration-accent"
+        >
+          Log in
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

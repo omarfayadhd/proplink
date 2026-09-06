@@ -8,22 +8,75 @@
  */
 @theme {
   --color-background: #ffffff;
-  --color-primary: #002147; /* deep navy */
-  --color-secondary: #003580;
-  --color-accent: #0066ff; /* CTA */
-  --color-surface: #f5f8ff;
-  --color-pale: #ebf2ff;
+  --color-primary: #1b1f1e; /* near-black ink */
+  --color-secondary: #33403c; /* slate green-grey */
+  --color-accent: #b4573c; /* terracotta ember — the palette's only non-neutral */
+  --color-surface: #f2f5f4; /* warm off-white */
+  --color-pale: #e6efee; /* mist */
+
+  /* Full-bleed marketing band ground (ADR-014). Deep petrol: it sits with
+     `pale`'s green-grey undertone, is not a return to the navy ADR-009 left,
+     and makes `accent` read as a warm counterpoint rather than a clash.
+
+     **Band ground only** — the hero and the closing CTA. It is never type, never
+     a product surface, and `accent` must never be *text* on it (2.05:1); ember
+     on this ground is a fill with white type (4.81:1), nothing else.
+     White on it is 9.86:1, `pale` 8.43:1. */
+  --color-brand: #0e4a55;
   --color-success: #0a6640;
   --color-intel: #0099a8;
   --color-warning: #a05a00;
   --color-danger: #c0152a;
-  --color-body: #2d3a4a;
-  --color-muted: #5a6a7a;
-  --color-line: #d0dae6; /* "border" in the brief; renamed to avoid clashing with Tailwind's border-* utilities */
+  --color-body: #2f3733; /* warm dark grey — the blue-grey clashed with the new ground */
+  --color-muted: #5f6b66;
+  --color-line: #d5dcd9; /* "border" in the brief; renamed to avoid clashing with Tailwind's border-* utilities */
 
   --font-sans:
-    var(--font-inter), Calibri, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
+    var(--font-figtree), Calibri, ui-sans-serif, system-ui, -apple-system, "Segoe UI",
     sans-serif;
+
+  /* Marketing display type (`font-display`). Same family as `--font-sans` since
+     ADR-012 — the two are separated by weight and scale, not by face. Kept as a
+     distinct token rather than collapsed into it because the *role* is still
+     real: this marks marketing headline type, and re-pointing it at a display
+     face later is one line here instead of an edit at every heading. */
+  --font-display: var(--font-figtree), ui-sans-serif, system-ui, sans-serif;
+
+  /* The hero's scroll cue (`animate-scroll-hint`): a short segment that falls
+     down a hairline and fades, once every few seconds. Declared in `@theme`
+     rather than as a bare `@keyframes` block so Tailwind owns it and emits it
+     with the utility — a hand-added rule in this file goes stale under
+     Turbopack's Tailwind cache (see `src/lib/plateWash.ts`). Restart
+     `npm run dev` after editing anything in `@theme`. */
+  --animate-scroll-hint: scroll-hint 2.6s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+
+  /* The ecosystem band's scrolling index (`animate-marquee`). The track holds
+     two identical copies of its content, so translating by exactly -50% lands on
+     the seam and the loop is invisible. Same `@theme` reasoning as above. */
+  --animate-marquee: marquee 52s linear infinite;
+
+  @keyframes marquee {
+    from {
+      transform: translate3d(0, 0, 0);
+    }
+    to {
+      transform: translate3d(-50%, 0, 0);
+    }
+  }
+
+  @keyframes scroll-hint {
+    0% {
+      transform: translateY(-100%);
+      opacity: 0;
+    }
+    35% {
+      opacity: 1;
+    }
+    100% {
+      transform: translateY(220%);
+      opacity: 0;
+    }
+  }
 }
 
 body {

@@ -1,6 +1,12 @@
 "use client";
 
 import Link from "next/link";
+import {
+  AUTH_BUTTON,
+  AUTH_INPUT,
+  AUTH_LABEL,
+  AuthShell,
+} from "@/components/auth/AuthShell";
 import { useState } from "react";
 
 export default function ForgotPasswordPage() {
@@ -24,46 +30,57 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <main className="flex flex-1 items-center justify-center bg-surface px-6 py-12">
-      <div className="w-full max-w-md rounded-lg border border-line bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-primary">Reset your password</h1>
-
-        {sent ? (
-          <p className="mt-4 text-sm text-body">
-            If an account exists for <strong>{email}</strong>, a reset link is on its way.
-            Check your inbox (and the dev console when running locally).
-          </p>
-        ) : (
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            <div>
-              <label htmlFor="email" className="block text-sm font-medium">
-                Email
-              </label>
-              <input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="mt-1 w-full rounded-md border border-line px-3 py-2 focus:border-accent focus:outline-none"
-              />
-            </div>
-            <button
-              type="submit"
-              disabled={submitting}
-              className="w-full rounded-md bg-accent py-2.5 font-semibold text-white hover:opacity-90 disabled:opacity-50"
-            >
-              {submitting ? "Sending…" : "Send reset link"}
-            </button>
-          </form>
-        )}
-
-        <p className="mt-4 text-center text-sm text-muted">
-          <Link href="/login" className="text-accent underline">
-            Back to log in
-          </Link>
+    <AuthShell
+      title="Reset your password"
+      subtitle="We will email you a link to choose a new one."
+      aside={{
+        headline: (
+          <>
+            The whole distressed deal,
+            <span className="mt-1 block font-light">in one place</span>
+          </>
+        ),
+        points: [
+          "Search live UK distressed stock by defect, EPC band and target ROI",
+          "Track enquiries, viewings and offers against every listing",
+          "Register expressions of interest in syndicated refurbishments",
+        ],
+      }}
+    >
+      {sent ? (
+        <p className="text-sm text-body">
+          If an account exists for <strong>{email}</strong>, a reset link is on its way.
+          Check your inbox (and the dev console when running locally).
         </p>
-      </div>
-    </main>
+      ) : (
+        <form onSubmit={onSubmit} className="space-y-5">
+          <div>
+            <label htmlFor="email" className={AUTH_LABEL}>
+              Email
+            </label>
+            <input
+              id="email"
+              type="email"
+              required
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              className={AUTH_INPUT}
+            />
+          </div>
+          <button type="submit" disabled={submitting} className={AUTH_BUTTON}>
+            {submitting ? "Sending…" : "Send reset link"}
+          </button>
+        </form>
+      )}
+
+      <p className="mt-8 text-center text-sm text-muted">
+        <Link
+          href="/login"
+          className="font-semibold text-primary underline decoration-line underline-offset-4 hover:decoration-accent"
+        >
+          Back to log in
+        </Link>
+      </p>
+    </AuthShell>
   );
 }

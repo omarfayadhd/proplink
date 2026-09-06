@@ -3,6 +3,12 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useState } from "react";
+import {
+  AUTH_BUTTON,
+  AUTH_INPUT,
+  AUTH_LABEL,
+  AuthShell,
+} from "@/components/auth/AuthShell";
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -45,9 +51,9 @@ function ResetPasswordForm() {
   }
 
   return (
-    <form onSubmit={onSubmit} className="mt-6 space-y-4">
+    <form onSubmit={onSubmit} className="space-y-5">
       <div>
-        <label htmlFor="password" className="block text-sm font-medium">
+        <label htmlFor="password" className={AUTH_LABEL}>
           New password
         </label>
         <input
@@ -57,22 +63,21 @@ function ResetPasswordForm() {
           minLength={8}
           value={password}
           onChange={(e) => setPassword(e.target.value)}
-          className="mt-1 w-full rounded-md border border-line px-3 py-2 focus:border-accent focus:outline-none"
+          className={AUTH_INPUT}
         />
         <p className="mt-1 text-xs text-muted">
           At least 8 characters, with a letter and a number.
         </p>
       </div>
       {error && (
-        <p role="alert" className="text-sm font-medium text-danger">
+        <p
+          role="alert"
+          className="rounded-xl bg-danger/10 px-4 py-3 text-sm font-medium text-danger"
+        >
           {error}
         </p>
       )}
-      <button
-        type="submit"
-        disabled={submitting}
-        className="w-full rounded-md bg-accent py-2.5 font-semibold text-white hover:opacity-90 disabled:opacity-50"
-      >
+      <button type="submit" disabled={submitting} className={AUTH_BUTTON}>
         {submitting ? "Saving…" : "Set new password"}
       </button>
     </form>
@@ -81,13 +86,26 @@ function ResetPasswordForm() {
 
 export default function ResetPasswordPage() {
   return (
-    <main className="flex flex-1 items-center justify-center bg-surface px-6 py-12">
-      <div className="w-full max-w-md rounded-lg border border-line bg-white p-8 shadow-sm">
-        <h1 className="text-2xl font-bold text-primary">Choose a new password</h1>
-        <Suspense>
-          <ResetPasswordForm />
-        </Suspense>
-      </div>
-    </main>
+    <AuthShell
+      title="Choose a new password"
+      subtitle="Pick something you have not used here before."
+      aside={{
+        headline: (
+          <>
+            The whole distressed deal,
+            <span className="mt-1 block font-light">in one place</span>
+          </>
+        ),
+        points: [
+          "Search live UK distressed stock by defect, EPC band and target ROI",
+          "Track enquiries, viewings and offers against every listing",
+          "Register expressions of interest in syndicated refurbishments",
+        ],
+      }}
+    >
+      <Suspense>
+        <ResetPasswordForm />
+      </Suspense>
+    </AuthShell>
   );
 }

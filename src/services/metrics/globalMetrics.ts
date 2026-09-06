@@ -43,3 +43,55 @@ export function formatPenceGBP(pence: number): string {
     maximumFractionDigits: 0,
   }).format(pence / 100);
 }
+
+/**
+ * Headline figures for the marketing landing hero (Task 3.6). Separate from
+ * `GlobalMetrics` because that shape is the sprint plan's fixed four-metric
+ * contract (docs/PropLink_Sprint_Plan_Claude_Code.md, Task 1.5) — the hero
+ * needs live-supply figures that read well before any syndicate has completed,
+ * and widening `GlobalMetrics` would change what every consumer of the strip
+ * means by it.
+ */
+export interface LandingStats {
+  /** Number of listings currently visible in the marketplace. */
+  liveListings: number;
+  /** Mean agent-declared target refurbishment ROI, or null if none declared. */
+  avgTargetRoiPct: number | null;
+}
+
+async function computeLandingStats(): Promise<LandingStats> {
+  const [liveListings, roi] = await Promise.all([
+    db.property.count({ where: { status: "LIVE" } }),
+    db.property.aggregate({
+      where: { status: "LIVE", targetRoiPct: { not: null } },
+      _avg: { targetRoiPct: true },
+    }),
+  ]);
+
+  const avg = roi._avg.targetRoiPct;
+  return {
+    liveListings,
+    avgTargetRoiPct: avg == null ? null : Math.round(avg),
+  };
+}
+
+/** Server-computed, cached 60s — same TTL as the global metrics. */
+export async function getLandingStats(): Promise<LandingStats> {
+  return cached("metrics:landing", 60, computeLandingStats);
+}
+
+/**
+ * Compact £ for hero-sized numbers: pence → "£5.87M" / "£412k" / "£950".
+ * The full `formatPenceGBP` value stays available as a `title` attribute, so
+ * nothing is lost by abbreviating — a 9-figure inventory sum rendered in full
+ * at hero type size wraps and stops being readable.
+ */
+export function formatCompactPenceGBP(pence: number): string {
+  const pounds = pence / 100;
+  if (pounds >= 1_000_000) {
+    // 2sf after the point, then strip a trailing ".00"/".0" so £5m reads "£5M".
+    return `£${(pounds / 1_000_000).toFixed(2).replace(/\.?0+$/, "")}M`;
+  }
+  if (pounds >= 1_000) return `£${Math.round(pounds / 1_000)}k`;
+  return formatPenceGBP(pence);
+}

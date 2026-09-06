@@ -1,5 +1,13 @@
 import { formatPenceGBP, getGlobalMetrics } from "@/services/metrics/globalMetrics";
 
+/**
+ * The sprint plan's four-metric global strip (Task 1.5).
+ *
+ * No longer mounted in the root layout: as of ADR-005 the marketing landing
+ * page carries these figures in its hero (`<HeroStats>`), which omits the
+ * zero-valued ones. Kept for the signed-in portal shells, where a persistent
+ * strip earns its space and every metric eventually has a value.
+ */
 export async function MetricsStrip() {
   const m = await getGlobalMetrics();
 
