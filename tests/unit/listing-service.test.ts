@@ -16,6 +16,7 @@ vi.mock("@/lib/db", () => ({
     // `never` because the other ($transaction(fn)) overload doesn't apply.
     $transaction: vi.fn(async (ops: unknown[]) => Promise.all(ops)) as never,
     $executeRaw: vi.fn(),
+    $queryRaw: vi.fn(),
   },
 }));
 
@@ -31,6 +32,9 @@ import { ListingServiceError } from "@/services/listings/errors";
 import type { CreateListingInput } from "@/services/listings/validation";
 import {
   createDraft,
+  getListingCoordinates,
+  getListingForPublicView,
+  isPubliclyVisibleStatus,
   submitForReview,
   transitionStatus,
   updateDraft,
@@ -527,5 +531,125 @@ describe("transitionStatus", () => {
     const call = mockDb.property.update.mock.calls[0][0];
     expect(call.data.status).toBe(PropertyStatus.DRAFT);
     expect(call.data.rejectionReason).toBe("Missing EPC certificate");
+  });
+});
+
+describe("isPubliclyVisibleStatus", () => {
+  it("is true for LIVE, UNDER_OFFER and SOLD", () => {
+    expect(isPubliclyVisibleStatus(PropertyStatus.LIVE)).toBe(true);
+    expect(isPubliclyVisibleStatus(PropertyStatus.UNDER_OFFER)).toBe(true);
+    expect(isPubliclyVisibleStatus(PropertyStatus.SOLD)).toBe(true);
+  });
+
+  it("is false for DRAFT and PENDING_REVIEW", () => {
+    expect(isPubliclyVisibleStatus(PropertyStatus.DRAFT)).toBe(false);
+    expect(isPubliclyVisibleStatus(PropertyStatus.PENDING_REVIEW)).toBe(false);
+  });
+});
+
+describe("getListingForPublicView", () => {
+  it("returns null when the listing does not exist", async () => {
+    mockDb.property.findUnique.mockResolvedValue(null);
+
+    const result = await getListingForPublicView({ propertyId: PROPERTY_ID });
+    expect(result).toBeNull();
+  });
+
+  it.each([PropertyStatus.LIVE, PropertyStatus.UNDER_OFFER, PropertyStatus.SOLD])(
+    "returns the listing for an anonymous viewer when status is %s",
+    async (status) => {
+      mockDb.property.findUnique.mockResolvedValue(propertyRow({ status }));
+
+      const result = await getListingForPublicView({ propertyId: PROPERTY_ID });
+      expect(result).not.toBeNull();
+      expect(result?.status).toBe(status);
+    },
+  );
+
+  it.each([PropertyStatus.DRAFT, PropertyStatus.PENDING_REVIEW])(
+    "hides a %s listing from an anonymous viewer (null, not an error)",
+    async (status) => {
+      mockDb.property.findUnique.mockResolvedValue(propertyRow({ status }));
+
+      const result = await getListingForPublicView({ propertyId: PROPERTY_ID });
+      expect(result).toBeNull();
+    },
+  );
+
+  it("hides a DRAFT listing from a logged-in user who is not the owner", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.DRAFT }),
+    );
+
+    const result = await getListingForPublicView({
+      propertyId: PROPERTY_ID,
+      viewer: { userId: "someone-else", role: Role.INVESTOR },
+    });
+    expect(result).toBeNull();
+  });
+
+  it("lets the owning agent preview their own DRAFT listing", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.DRAFT }),
+    );
+
+    const result = await getListingForPublicView({
+      propertyId: PROPERTY_ID,
+      viewer: { userId: AGENT_USER_ID, role: Role.AGENT },
+    });
+    expect(result).not.toBeNull();
+  });
+
+  it("lets an admin preview any non-live listing", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.PENDING_REVIEW }),
+    );
+
+    const result = await getListingForPublicView({
+      propertyId: PROPERTY_ID,
+      viewer: { userId: "admin-1", role: Role.ADMIN },
+    });
+    expect(result).not.toBeNull();
+  });
+
+  it("does not let a different agent preview someone else's DRAFT listing", async () => {
+    mockDb.property.findUnique.mockResolvedValue(
+      propertyRow({ status: PropertyStatus.DRAFT }),
+    );
+
+    const result = await getListingForPublicView({
+      propertyId: PROPERTY_ID,
+      viewer: { userId: "other-agent", role: Role.AGENT },
+    });
+    expect(result).toBeNull();
+  });
+});
+
+describe("getListingCoordinates", () => {
+  it("reads back lat/lng via PostGIS ST_Y/ST_X", async () => {
+    mockDb.$queryRaw.mockResolvedValue([{ lat: 53.48, lng: -2.24 }]);
+
+    const result = await getListingCoordinates(PROPERTY_ID);
+    expect(result).toEqual({ lat: 53.48, lng: -2.24 });
+  });
+
+  it("returns null when the property has no row (defensive — id mismatch)", async () => {
+    mockDb.$queryRaw.mockResolvedValue([]);
+
+    const result = await getListingCoordinates(PROPERTY_ID);
+    expect(result).toBeNull();
+  });
+
+  // `Property.location` is nullable: a DRAFT saved before the address step
+  // completed, or a listing whose geocode failed, has a row but a NULL point —
+  // `ST_Y(NULL)`/`ST_X(NULL)` come back as NULL, not as a missing row. Callers
+  // treat a non-null return as "usable coordinates" (the detail page hands it
+  // straight to `StaticMapService.getMapImageUrl`, which calls `.toFixed()`),
+  // so a `{ lat: null, lng: null }` object must not escape this function.
+  it("returns null when the row exists but the PostGIS point was never set", async () => {
+    mockDb.$queryRaw.mockResolvedValue([{ lat: null, lng: null }]);
+
+    const result = await getListingCoordinates(PROPERTY_ID);
+    expect(result).toBeNull();
   });
 });

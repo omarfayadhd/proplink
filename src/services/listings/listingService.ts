@@ -67,6 +67,65 @@ export async function getListingById(
   return db.property.findUnique({ where: { id: propertyId }, include: LISTING_INCLUDE });
 }
 
+const PUBLIC_LISTING_STATUSES: PropertyStatus[] = [
+  PropertyStatus.LIVE,
+  PropertyStatus.UNDER_OFFER,
+  PropertyStatus.SOLD,
+];
+
+/** Task 2.5 brief: only LIVE/UNDER_OFFER/SOLD listings are publicly visible. */
+export function isPubliclyVisibleStatus(status: PropertyStatus): boolean {
+  return PUBLIC_LISTING_STATUSES.includes(status);
+}
+
+/**
+ * Visibility gate for the public `/marketplace/[id]` page (Task 2.5 brief):
+ * LIVE/UNDER_OFFER/SOLD are visible to anyone; a DRAFT/PENDING_REVIEW listing
+ * is visible only to its owning agent or an admin previewing it — everyone
+ * else (including an anonymous visitor) gets `null`, so the page 404s rather
+ * than leaking that the id exists.
+ */
+export async function getListingForPublicView(params: {
+  propertyId: string;
+  viewer?: { userId: string; role: Role } | null;
+}): Promise<ListingWithRelations | null> {
+  const listing = await getListingById(params.propertyId);
+  if (!listing) return null;
+  if (isPubliclyVisibleStatus(listing.status)) return listing;
+
+  const viewer = params.viewer;
+  if (viewer?.role === Role.ADMIN) return listing;
+  if (viewer && listing.agentProfile.userId === viewer.userId) return listing;
+  return null;
+}
+
+/**
+ * `Property.location` is a PostGIS `geography(Point,4326)` — Prisma's
+ * `Unsupported` type, so it's never selectable via the normal query API (same
+ * reason `setPropertyLocation` above writes it via raw SQL). Read back for the
+ * public detail page's static map (Task 2.5); `ST_Y`/`ST_X` need an explicit
+ * cast to `geometry` first (`geography` has no direct X/Y accessors).
+ *
+ * `location` is nullable — a DRAFT saved before the wizard's address step
+ * completed, or a listing whose geocode failed, still has a row but a NULL
+ * point, and `ST_Y(NULL)` yields NULL rather than no row. Null out the whole
+ * result in that case: every caller treats a non-null return as usable
+ * coordinates (the detail page passes it straight to `StaticMapService`,
+ * which formats the numbers), so a half-null object must not escape.
+ */
+export async function getListingCoordinates(
+  propertyId: string,
+): Promise<{ lat: number; lng: number } | null> {
+  const rows = await db.$queryRaw<{ lat: number | null; lng: number | null }[]>`
+    SELECT ST_Y("location"::geometry) AS lat, ST_X("location"::geometry) AS lng
+    FROM "Property"
+    WHERE "id" = ${propertyId}
+  `;
+  const row = rows[0];
+  if (!row || row.lat == null || row.lng == null) return null;
+  return { lat: row.lat, lng: row.lng };
+}
+
 export async function getOwnedListing(params: {
   userId: string;
   propertyId: string;
@@ -85,7 +144,13 @@ export async function listListingsForAgentUser(agentUserId: string) {
   return db.property.findMany({
     where: { agentProfile: { userId: agentUserId } },
     orderBy: { createdAt: "desc" },
-    include: { images: { orderBy: { sortOrder: "asc" }, take: 1 } },
+    include: {
+      images: { orderBy: { sortOrder: "asc" }, take: 1 },
+      // Task 2.6 analytics: saves are counted live from `SavedProperty` rather
+      // than denormalised onto `Property` like `viewCount` is — a save has an
+      // owning row to count, so there is nothing to keep in sync.
+      _count: { select: { savedBy: true } },
+    },
   });
 }
 
