@@ -67,6 +67,19 @@ export default async function AgentListingsPage() {
             header: "Asking price",
             render: (p) => formatPenceGBP(p.askingPriceGBP),
           },
+          // Task 2.6 analytics. `viewCount` is a denormalised counter on
+          // Property (incremented once per session by the view beacon); saves
+          // are counted live from the `SavedProperty` join rows.
+          {
+            key: "views",
+            header: "Views",
+            render: (p) => <span data-testid={`views-${p.id}`}>{p.viewCount}</span>,
+          },
+          {
+            key: "saves",
+            header: "Saves",
+            render: (p) => <span data-testid={`saves-${p.id}`}>{p._count.savedBy}</span>,
+          },
           {
             key: "created",
             header: "Created",

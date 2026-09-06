@@ -1,5 +1,7 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { closeDb, hasDb, q } from "./helpers/db";
+import { runId } from "./helpers/runId";
+import { login } from "./helpers/login";
 
 // Full-flow spec needs the live dev database (H1.2) — same convention as the
 // Sprint 1 specs. The "a 4th LIVE listing is blocked by the limit" criterion
@@ -9,15 +11,7 @@ import { closeDb, hasDb, q } from "./helpers/db";
 // moderation route/UI — see tests/unit/listing-service.test.ts.
 test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
-const RUN = `w2listing-${Date.now()}`;
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/login");
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/");
-}
+const RUN = runId("w2listing");
 
 test.afterAll(async () => {
   await q(`DELETE FROM "Property" WHERE title LIKE $1`, [`${RUN}%`]);

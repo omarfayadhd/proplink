@@ -3,11 +3,17 @@ import { getToken } from "next-auth/jwt";
 
 // Role gates for the portal route groups. Uses the JWT cookie directly
 // (edge-safe — no Prisma import here). Fine-grained checks stay server-side
-// in services via requireRole()/requireKyc().
+// in services and pages via requireRole()/requireKyc()/`auth()`.
+//
+// **The three self-serve roles do not overlap** (ADR-016): a BUYER cannot reach
+// /agent or /investor, and so on. ADMIN is deliberately in every gate — it is
+// seed-only and governance-facing, and moderating a listing or reviewing a KYC
+// case means seeing what the role concerned sees.
 const GATES: Array<{ prefix: string; roles: string[] }> = [
   { prefix: "/admin", roles: ["ADMIN"] },
   { prefix: "/agent", roles: ["AGENT", "ADMIN"] },
   { prefix: "/investor", roles: ["INVESTOR", "ADMIN"] },
+  { prefix: "/buy", roles: ["BUYER", "ADMIN"] },
 ];
 
 export default async function middleware(request: NextRequest) {
@@ -36,5 +42,5 @@ export default async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/admin/:path*", "/agent/:path*", "/investor/:path*"],
+  matcher: ["/admin/:path*", "/agent/:path*", "/investor/:path*", "/buy/:path*"],
 };

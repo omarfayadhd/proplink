@@ -1,55 +1,13 @@
 import { test, expect, type Page } from "@playwright/test";
 import { closeDb, hasDb, q } from "./helpers/db";
+import { runId } from "./helpers/runId";
+import { login } from "./helpers/login";
 
 // Full-flow spec needs the live dev database (H1.2) — same convention as the
 // Sprint 1/2 specs (see week2-admin.spec.ts, agent-listing-wizard.spec.ts).
 test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
-const RUN = `w2mod-${Date.now()}`;
-
-/**
- * This spec is the first to re-login mid-test in the same browser context
- * (agent -> admin -> agent), unlike week2-admin.spec.ts/agent-listing-wizard.spec.ts
- * which each log in exactly once. Two hardenings over the simple
- * fill+click+waitForURL used elsewhere:
- *  1. `clearCookies()` first — a clean slate before every sign-in, so a stale
- *     session/CSRF cookie from the *previous* login can't race with or shadow
- *     the new one.
- *  2. A deterministic post-condition instead of a loose waitForURL match on
- *     the home route: the login page calls `signIn({ redirect: false })` then does a
- *     client-side `router.push("/")`, so a URL-based wait can resolve before
- *     the session cookie is actually live — or, on a slow/raced hydration,
- *     before the click's `onSubmit` handler even ran. Polling
- *     `/api/auth/session` for the expected email is the actual invariant we
- *     need ("this call ends with an X session or throws"), and — unlike a URL
- *     match — it can't be satisfied by a stale, pre-existing session.
- *  3. Pre-empt the GDPR cookie-consent banner
- *     (`src/components/layout/CookieBanner.tsx` — `localStorage`-backed, key
- *     `proplink-cookie-consent`, NOT an actual cookie despite the name) via
- *     `addInitScript`, which runs before any page script on every subsequent
- *     navigation for this `page`'s lifetime. Without this the banner mounts
- *     on every fresh navigation (nothing ever dismisses it) and, being
- *     `fixed inset-x-0 bottom-0`, intercepts pointer events on any
- *     bottom-of-viewport control — here, the moderation modal's
- *     Approve/Reject buttons.
- */
-async function login(page: Page, email: string, password: string) {
-  await page.addInitScript(() => {
-    window.localStorage.setItem("proplink-cookie-consent", "essential");
-  });
-
-  await page.context().clearCookies();
-  await page.goto("/login");
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click("button[type=submit]");
-
-  await expect(async () => {
-    const res = await page.request.get("/api/auth/session");
-    const body = await res.json().catch(() => null);
-    expect(body?.user?.email).toBe(email);
-  }).toPass({ timeout: 10_000 });
-}
+const RUN = runId("w2mod");
 
 /** Drives the Task 2.2 wizard (same steps as agent-listing-wizard.spec.ts) to PENDING_REVIEW. */
 async function submitListingForReview(page: Page, title: string) {

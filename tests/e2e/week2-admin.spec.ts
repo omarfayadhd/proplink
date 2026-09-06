@@ -1,17 +1,11 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { closeDb, hasDb, q } from "./helpers/db";
+import { runId } from "./helpers/runId";
+import { login } from "./helpers/login";
 
 test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
-const RUN = `w2admin-${Date.now()}`;
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/login");
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/");
-}
+const RUN = runId("w2admin");
 
 test.afterAll(async () => {
   await q(
@@ -96,10 +90,17 @@ test("/dev/ui renders every primitive", async ({ page }) => {
   await expect(page.getByRole("status")).toContainText("Listing saved");
 });
 
-test("metrics strip shows computed values from the DB", async ({ page }) => {
+test("global metrics show computed values from the DB", async ({ page }) => {
   await page.goto("/");
-  const values = page.getByTestId("metric-value");
-  await expect(values).toHaveCount(4);
-  // Seeded DB has no LIVE listings yet — but real (zero) values render.
+  // The Task 1.5 metrics now live in the landing hero rather than in a
+  // full-width strip above the header (ADR-005), and zero-valued ones are
+  // omitted — so the count is the number of metrics that currently have a
+  // value, not a fixed four.
+  const values = page.getByTestId("hero-stats").getByTestId("metric-value");
+  expect(await values.count()).toBeGreaterThanOrEqual(1);
+  // Values are computed, not stubbed. Asserting the format rather than a
+  // figure: the seed's 30 LIVE listings (Task 2.7) make the inventory total
+  // non-zero, and the E2E specs add and remove listings of their own as they
+  // run, so any exact number would be a moving target.
   await expect(values.first()).toContainText("£");
 });

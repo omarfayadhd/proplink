@@ -72,7 +72,7 @@ export default async function AdminUsersPage({
         </div>
         <button
           type="submit"
-          className="rounded-md bg-accent px-4 py-2 text-sm font-semibold text-white hover:bg-secondary"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-accent"
         >
           Filter
         </button>

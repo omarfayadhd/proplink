@@ -1,19 +1,13 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { closeDb, hasDb, q } from "./helpers/db";
+import { runId } from "./helpers/runId";
+import { login } from "./helpers/login";
 
 // Full-flow spec needs the live dev database (H1.2) — same convention as the
 // Sprint 1/2 specs (see week2-admin.spec.ts, agent-listing-wizard.spec.ts).
 test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
-const RUN = `w2profile-${Date.now()}`;
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/login");
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/");
-}
+const RUN = runId("w2profile");
 
 test.afterAll(async () => {
   await q(`DELETE FROM "CaseStudy" WHERE title LIKE $1`, [`${RUN}%`]);
@@ -52,10 +46,15 @@ test("agent adds a case study and it renders with capex/margin on the public pro
   // Public profile page — no login required to view.
   await page.goto(`/agents/${profile.id}`);
   await expect(page.getByRole("heading", { name: title })).toBeVisible();
-  await expect(page.getByTestId("case-study-capex")).toContainText("£45,000");
-  await expect(page.getByTestId("case-study-net-margin")).toContainText("£22,000");
+
+  // Scoped to *this* case study's card: since Task 2.7 the seed publishes a
+  // case study on this profile too, so a page-level `getByTestId` would match
+  // more than one element and trip Playwright's strict mode.
+  const publicCard = page.getByTestId("case-study-card").filter({ hasText: title });
+  await expect(publicCard.getByTestId("case-study-capex")).toContainText("£45,000");
+  await expect(publicCard.getByTestId("case-study-net-margin")).toContainText("£22,000");
   await expect(
-    page.getByText("Bought at auction, gutted and re-wired, sold within 4 months."),
+    publicCard.getByText("Bought at auction, gutted and re-wired, sold within 4 months."),
   ).toBeVisible();
 });
 

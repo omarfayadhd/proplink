@@ -42,7 +42,12 @@ export default async function AgentProfilePage({ params }: PageProps) {
     : null;
 
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-8 px-6 py-10">
+    // `<main>` for the same reason as `/marketplace/[id]`: the other publicly
+    // indexed page in Sprint 2, so it needs the landmark too. The
+    // authenticated `/agent/**` and `/admin/**` pages still use plain `<div>`
+    // wrappers — same defect, but noindex and behind auth; queued for the
+    // Sprint 6 hardening pass rather than fixed piecemeal here.
+    <main className="mx-auto w-full max-w-4xl space-y-8 px-6 py-10">
       <div className="flex items-start gap-4">
         <div
           aria-hidden
@@ -176,6 +181,6 @@ export default async function AgentProfilePage({ params }: PageProps) {
           </ul>
         )}
       </section>
-    </div>
+    </main>
   );
 }

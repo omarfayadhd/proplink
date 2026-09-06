@@ -1,20 +1,14 @@
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect } from "@playwright/test";
 import { createHash } from "node:crypto";
 import { closeDb, hasDb, q } from "./helpers/db";
+import { runId } from "./helpers/runId";
+import { login } from "./helpers/login";
 
 // Full-flow specs need the live dev database (H1.2). Skipped in DB-less CI.
 test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
-const RUN = `w2auth-${Date.now()}`;
+const RUN = runId("w2auth");
 const PASSWORD = "Password123";
-
-async function login(page: Page, email: string, password: string) {
-  await page.goto("/login");
-  await page.fill("#email", email);
-  await page.fill("#password", password);
-  await page.click("button[type=submit]");
-  await page.waitForURL("**/");
-}
 
 test.afterAll(async () => {
   await q(`DELETE FROM "User" WHERE email LIKE $1`, [`${RUN}%`]);
@@ -38,14 +32,27 @@ for (const role of ["AGENT", "INVESTOR", "BUYER"] as const) {
     expect(user.role).toBe(role);
     expect(user.emailVerified).toBeNull();
 
-    // The mailer is console-only in dev — mint a token exactly as the service
-    // does (sha256 stored, raw in the link), then follow the link.
+    // The mailer is console-only in dev, and only the sha256 of the token is
+    // stored — so the raw value in the "emailed" link can't be read back out
+    // of the DB. Instead of inserting a competing row, wait for the one
+    // `registerUser` creates and rewrite its hash to a value this test knows.
+    //
+    // Inserting our own row races: `registerUser` fires
+    // `requestEmailVerification` without awaiting it (deliberately — a mailer
+    // outage must not fail registration), so `createToken` can land *after*
+    // the 201 response, and its "invalidate any previous unused tokens for
+    // this purpose" `deleteMany` would delete a row inserted here in between.
+    // That made this spec fail intermittently, on a different role each run.
     const raw = `${RUN}-token-${user.id}`;
-    await q(
-      `INSERT INTO "VerificationToken" (id, "userId", token, purpose, "expiresAt")
-       VALUES ($1, $2, $3, 'EMAIL_VERIFY', NOW() + interval '1 hour')`,
-      [`${RUN}-tid-${role}`, user.id, createHash("sha256").update(raw).digest("hex")],
-    );
+    await expect(async () => {
+      const updated = await q(
+        `UPDATE "VerificationToken" SET token = $2
+          WHERE "userId" = $1 AND purpose = 'EMAIL_VERIFY' AND "usedAt" IS NULL
+          RETURNING id`,
+        [user.id, createHash("sha256").update(raw).digest("hex")],
+      );
+      expect(updated).toHaveLength(1);
+    }).toPass({ timeout: 5_000 });
 
     await page.goto(`/verify-email?token=${raw}`);
     await expect(page.getByText("Email verified ✓")).toBeVisible();
