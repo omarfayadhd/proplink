@@ -22,11 +22,18 @@ purchases) → deal closes on-platform → platform logs a success fee.
 | `BUYER`    | Demand     | Search, calculate affordability, chat, book viewings, submit offers                                  |
 | `ADMIN`    | Governance | Moderate listings, monitor KYC, manage fees/ads/users. **Seed-only — never self-serve registration** |
 
-## Five portals (one nav bar + global metrics strip)
+## Five portals
 
 Marketplace · Investor Portal · Agent Portal · Market Intelligence · Ecosystem
-Marketplace. The metrics strip shows: Total Distress Inventory · Completed Syndicate
-Deals · Accrued Success Fees · Vetted Referrals Routed.
+Marketplace. The four global metrics — Total Distress Inventory · Completed
+Syndicate Deals · Accrued Success Fees · Vetted Referrals Routed — are on the
+landing page rather than a strip above the header (ADR-005).
+
+**Not one shared nav bar.** The global header carries no navigation beyond the
+wordmark and, signed in, a single link to the portal that role owns (ADR-009,
+ADR-016). Each role portal navigates itself. The three self-serve roles —
+`AGENT`, `INVESTOR`, `BUYER` — are strictly separate: `/agent`, `/investor` and
+`/buy` each 403 for the other two.
 
 ## The 8 distress tags
 
@@ -55,11 +62,13 @@ movement · multi-language.
 
 ## Current phase
 
-**Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine.** Sprint 1 (Foundation)
-is complete. Tasks 2.1 (S3 uploads) and 2.2 (multi-step listing form) are
-code-complete on branch `sprint-2`; Tasks 2.3–2.7 (moderation queue, agent
-profile hub, property detail page, leads & analytics, 40 seeded listings) are
-next. See `sprints/STATUS.md` for the live tracker and `BLOCKERS.md` for what is
+**Sprint 2 (Weeks 3–4) — Agent Portal & Listing Engine: complete** (2026-08-07,
+branch `sprint-2`). All seven tasks are done and verified against a real
+database: S3-shaped uploads, the 5-step listing wizard, the admin moderation
+queue, the agent profile & credibility hub, the public `/marketplace/[id]`
+detail page with enquiries, agent leads & listing analytics, and a 40-listing
+demo catalogue. **Sprint 3 (Weeks 5–6) — Search, Map & Commute — is next.**
+See `sprints/STATUS.md` for the live tracker and `BLOCKERS.md` for what is
 waiting on human tasks.
 
 **Mode: LOCAL-ONLY development** (2026-07-23, ADR-004) — no GitHub/Vercel/domains/

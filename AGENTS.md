@@ -51,7 +51,8 @@ npm run build        # production build
 npm run typecheck    # tsc --noEmit
 npm run lint         # eslint
 npm run format:check # prettier
-npm run test         # vitest unit tests
+npm run test         # vitest: tests/unit (DB mocked) + tests/integration
+                     #   (real DB; skips itself when DATABASE_URL is unset)
 npm run test:e2e     # playwright (builds not required locally; CI builds first)
 npm run db:migrate   # prisma migrate dev   (needs DIRECT_URL)
 npm run db:seed      # prisma db seed       (needs DIRECT_URL)

@@ -222,6 +222,11 @@ model Property {
   /// any change will be disclosed to buyers before offers are accepted.
   /// Required before submitForReview; null while still drafting.
   pricingSafeguardAckAt DateTime?
+  /// Task 2.6 analytics: incremented once per browser session per visitor by
+  /// `POST /api/listings/[id]/view`; the owning agent's and admins' own views
+  /// are never counted. Saves are not denormalised here — they are counted
+  /// live from `SavedProperty`, which has no equivalent double-count problem.
+  viewCount      Int            @default(0)
   /// Maintained by trigger in migration; GIN-indexed.
   searchVector   Unsupported("tsvector")?
   createdAt      DateTime       @default(now())

@@ -91,3 +91,22 @@ export async function sendListingRejectedEmail(
     text: `Your listing "${listingTitle}" was reviewed and could not be approved as submitted.\n\nReason: ${reason}\n\nPlease make the requested changes and resubmit it for review from your agent portal.`,
   });
 }
+
+// Task 2.5 — public property detail page enquiry notification.
+
+export async function sendNewEnquiryEmail(params: {
+  to: string;
+  listingTitle: string;
+  fromName: string;
+  fromEmail: string;
+  contactPhone: string | null;
+  message: string;
+}) {
+  await mailer.send({
+    to: params.to,
+    subject: `New enquiry on "${params.listingTitle}"`,
+    text: `${params.fromName} (${params.fromEmail}) sent an enquiry about "${params.listingTitle}" on PropLink UK.${
+      params.contactPhone ? `\nPreferred phone: ${params.contactPhone}` : ""
+    }\n\nMessage:\n${params.message}\n\nReply directly to this email, or view the enquiry in your PropLink UK agent portal.`,
+  });
+}
