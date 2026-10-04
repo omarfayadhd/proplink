@@ -15,7 +15,9 @@ test.afterAll(async () => {
   await closeDb();
 });
 
-for (const role of ["AGENT", "INVESTOR", "BUYER"] as const) {
+// AGENT is not self-serve — it is provisioned from the backend (ADR-018), so
+// the registration flow only covers the two public roles.
+for (const role of ["INVESTOR", "BUYER"] as const) {
   test(`register → verify email → login as ${role}`, async ({ page, request }) => {
     const email = `${RUN}-${role.toLowerCase()}@proplink.test`;
 

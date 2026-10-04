@@ -8,10 +8,11 @@ test.describe("auth pages", () => {
       page.getByRole("heading", { name: /create your account/i }),
     ).toBeVisible();
 
-    // Self-serve roles only — no Admin option
+    // Self-serve roles only. AGENT and ADMIN are provisioned from the backend
+    // (ADR-018), so neither is offered here.
     await expect(page.getByRole("radio", { name: /investor/i })).toBeAttached();
-    await expect(page.getByRole("radio", { name: /agent/i })).toBeAttached();
     await expect(page.getByRole("radio", { name: /buyer/i })).toBeAttached();
+    await expect(page.getByRole("radio", { name: /agent/i })).toHaveCount(0);
     await expect(page.getByRole("radio", { name: /admin/i })).toHaveCount(0);
 
     await expect(page.getByRole("checkbox")).toBeAttached();

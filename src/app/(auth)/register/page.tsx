@@ -14,7 +14,6 @@ import { signIn } from "next-auth/react";
 const roles = [
   { value: "BUYER", label: "Buyer", hint: "Search and purchase property" },
   { value: "INVESTOR", label: "Investor", hint: "Fund refurbishment projects" },
-  { value: "AGENT", label: "Agent", hint: "List distressed stock" },
 ];
 
 export default function RegisterPage() {
@@ -128,7 +127,7 @@ export default function RegisterPage() {
 
         <fieldset>
           <legend className={AUTH_LABEL}>I am a…</legend>
-          <div className="mt-2 grid grid-cols-3 gap-2.5">
+          <div className="mt-2 grid grid-cols-2 gap-2.5">
             {roles.map((r) => (
               <label
                 key={r.value}

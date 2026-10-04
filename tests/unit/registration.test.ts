@@ -16,13 +16,16 @@ describe("registrationSchema", () => {
     expect(result.role).toBe("INVESTOR");
   });
 
-  it.each(["AGENT", "INVESTOR", "BUYER"])("allows self-serve role %s", (role) => {
+  it.each(["INVESTOR", "BUYER"])("allows self-serve role %s", (role) => {
     expect(registrationSchema.safeParse({ ...valid, role }).success).toBe(true);
   });
 
-  it("rejects ADMIN registration (seed-only role)", () => {
-    expect(registrationSchema.safeParse({ ...valid, role: "ADMIN" }).success).toBe(false);
-  });
+  it.each(["ADMIN", "AGENT"])(
+    "rejects %s registration (backend-provisioned role)",
+    (role) => {
+      expect(registrationSchema.safeParse({ ...valid, role }).success).toBe(false);
+    },
+  );
 
   it("rejects passwords under 8 characters", () => {
     expect(registrationSchema.safeParse({ ...valid, password: "Pass1" }).success).toBe(

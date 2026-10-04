@@ -70,6 +70,25 @@ export async function sendPasswordResetEmail(to: string, token: string) {
   });
 }
 
+/**
+ * ADR-019 — an agent account is created by an admin, so the agent never chose
+ * a password. The invite link sets their first one through the same
+ * `/reset-password` screen, flagged so its copy reads as a welcome rather than
+ * a reset. Valid 7 days: an invite waits in an inbox, unlike a reset a user
+ * just asked for.
+ */
+export function agentInviteUrl(token: string): string {
+  return `${BASE_URL}/reset-password?token=${token}&invite=1`;
+}
+
+export async function sendAgentInviteEmail(to: string, token: string) {
+  await mailer.send({
+    to,
+    subject: "Your PropLink UK agent account is ready",
+    text: `An administrator has created a PropLink UK agent account for this address.\n\nSet your password and sign in here (link valid 7 days):\n${agentInviteUrl(token)}\n\nIf you were not expecting this, ignore this email — the account cannot be used until a password is set.`,
+  });
+}
+
 // Task 2.3 — admin moderation notifications.
 
 export async function sendListingApprovedEmail(to: string, listingTitle: string) {

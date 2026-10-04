@@ -1,11 +1,16 @@
 import { createHash, randomBytes } from "node:crypto";
 import { db } from "@/lib/db";
 
-export type TokenPurpose = "EMAIL_VERIFY" | "PASSWORD_RESET";
+// `VerificationToken.purpose` is a plain String column, so adding a purpose is
+// code-only — no migration, which keeps constraint 8 (additive after Week 4).
+export type TokenPurpose = "EMAIL_VERIFY" | "PASSWORD_RESET" | "AGENT_INVITE";
 
 const TTL_MS: Record<TokenPurpose, number> = {
   EMAIL_VERIFY: 24 * 60 * 60 * 1000,
   PASSWORD_RESET: 60 * 60 * 1000,
+  // An admin-issued invite sits in an inbox until the agent gets to it, so it
+  // outlives a reset the user asked for seconds ago (ADR-019).
+  AGENT_INVITE: 7 * 24 * 60 * 60 * 1000,
 };
 
 // Only the SHA-256 of the token is stored; the raw value exists solely in the

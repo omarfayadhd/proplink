@@ -2,7 +2,11 @@ import bcrypt from "bcryptjs";
 import { z } from "zod";
 import { db } from "@/lib/db";
 import { sendPasswordResetEmail } from "@/services/email/mailer";
-import { consumeToken, createToken } from "@/services/users/verificationTokens";
+import {
+  consumeToken,
+  createToken,
+  type TokenPurpose,
+} from "@/services/users/verificationTokens";
 
 export const passwordSchema = z
   .string()
@@ -21,24 +25,33 @@ export async function requestPasswordReset(email: string): Promise<void> {
 
 export type ResetResult = { ok: true } | { ok: false; error: string; status: number };
 
+/**
+ * Also serves the agent invite (ADR-019): an admin-created agent has no
+ * password, and setting their first one is the same operation as resetting.
+ * The purpose is passed through to `consumeToken`, so an invite token and a
+ * reset token are not interchangeable.
+ */
 export async function resetPassword(
   rawToken: string,
   newPassword: string,
+  purpose: Extract<TokenPurpose, "PASSWORD_RESET" | "AGENT_INVITE"> = "PASSWORD_RESET",
 ): Promise<ResetResult> {
   const parsed = passwordSchema.safeParse(newPassword);
   if (!parsed.success) {
     return { ok: false, error: parsed.error.issues[0].message, status: 400 };
   }
 
-  const result = await consumeToken(rawToken, "PASSWORD_RESET");
+  const result = await consumeToken(rawToken, purpose);
   if (!result.ok) {
-    return { ok: false, error: `Reset link is ${result.reason}`, status: 400 };
+    const label = purpose === "AGENT_INVITE" ? "Invite link" : "Reset link";
+    return { ok: false, error: `${label} is ${result.reason}`, status: 400 };
   }
 
   const passwordHash = await bcrypt.hash(parsed.data, 10);
   await db.user.update({
     where: { id: result.userId },
-    // A working reset link proves mailbox ownership — count it as verification.
+    // A working link proves mailbox ownership — count it as verification,
+    // whether it arrived as a reset or as an agent invite.
     data: { passwordHash, emailVerified: new Date() },
   });
   return { ok: true };

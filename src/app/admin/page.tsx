@@ -1,3 +1,4 @@
+import Link from "next/link";
 import { revalidatePath } from "next/cache";
 import { requireRole } from "@/lib/authz";
 import { listUsers, setUserActive } from "@/services/admin/users";
@@ -39,6 +40,18 @@ export default async function AdminUsersPage({
 
   return (
     <div className="space-y-4">
+      <div className="flex items-center justify-between gap-4">
+        <p className="text-sm text-muted">
+          Agents are provisioned here, not self-serve (ADR-018).
+        </p>
+        <Link
+          href="/admin/agents/new"
+          className="rounded-md bg-primary px-4 py-2 text-sm font-semibold text-white hover:bg-accent"
+        >
+          Add agent
+        </Link>
+      </div>
+
       <form method="get" className="flex flex-wrap items-end gap-3">
         <div>
           <label htmlFor="q" className="block text-xs font-medium text-muted">
