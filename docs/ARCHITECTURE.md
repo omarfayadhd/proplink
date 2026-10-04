@@ -102,7 +102,19 @@ Full schema: `prisma/schema.prisma` (implements the sprint plan's core schema).
   `session.user` (typed in `src/types/next-auth.d.ts`). OAuth users get role/kyc
   loaded from DB in the `jwt` callback.
 - Registration: `POST /api/register` (thin) → `src/services/users/registration.ts`
-  (Zod schema + bcrypt + create). Self-serve roles: AGENT/INVESTOR/BUYER.
+  (Zod schema + bcrypt + create). Self-serve roles: INVESTOR/BUYER only —
+  `SELF_SERVE_ROLES` excludes AGENT and ADMIN, which are provisioned from the
+  backend, so `POST /api/register` 400s on either (ADR-018).
+- Agent provisioning: `/admin/agents/new` (server action → `requireRole("ADMIN")`)
+  → `src/services/admin/agents.ts`'s `createAgent()` — the only path that mints
+  `Role.AGENT`. Creates `User` (`passwordHash: null`) + `AgentProfile` in one
+  transaction, writes an `AGENT_CREATED` audit row, and emails an
+  `AGENT_INVITE` token (ADR-019).
+- Verification tokens carry three purposes: `EMAIL_VERIFY` (24h),
+  `PASSWORD_RESET` (1h) and `AGENT_INVITE` (7d). `VerificationToken.purpose` is
+  a plain `String`, so purposes are code-only — no migration. `resetPassword()`
+  takes the purpose, so an invite and a reset token are not interchangeable;
+  both land on `/reset-password`, which switches copy on `?invite=1`.
   **ADMIN is seed-only.** First Google sign-in provisions a BUYER.
 - **Route gating** (`src/middleware.ts`): `/admin` (ADMIN), `/agent/**`
   (AGENT/ADMIN), `/investor/**` (INVESTOR/ADMIN) via edge-safe `getToken` on the
@@ -486,9 +498,9 @@ the landing hero. The heading takes the reference's treatment at _tool_ scale
 nothing changed**: same sidebar, same grid, same gaps. Density is the feature on
 a search page, and the marketing language would cost it.
 
-- **The URL is the state.** `/marketplace` is SSR: `<SearchFilters>` (client)
-  rewrites the query string via `router.replace`, and the page re-renders
-  results from it. Local React state exists only to keep inputs responsive
+- **The URL is the state.** `/marketplace` is SSR: `<SearchFilters>` (client,
+  over `useSearchQuerySync`) rewrites the query string via `router.replace`, and
+  the page re-renders results from it. Local React state exists only to keep inputs responsive
   between keystroke and debounce — there is no second copy of filter state to
   drift, back/forward work, and a shared link reproduces the search exactly.
 - `buildSearchQueryString` (`services/search/queryString.ts`) is the exact
@@ -498,6 +510,12 @@ a search page, and the marketing language would cost it.
 - **The live count uses `/api/search/count`**, debounced at 300ms, with an
   incrementing request id so a slow early response can't overwrite a newer one.
   It has to answer "how many would this find?" while the slider is still moving.
+- **`SearchResultItem` carries `imageUrls`** (ADR-020) — up to
+  `CARD_IMAGE_LIMIT` (8) photos by `sortOrder`, for the card carousel, with
+  `imageUrl` retained as the cover shot so older consumers are untouched. The
+  `LIMIT` sits _inside_ the subquery, so Postgres stops reading rows rather than
+  aggregating a large array and discarding most of it; the count query selects
+  neither, since it renders no cards.
 - ⚠️ **Client components must import `services/search/queryString` and
   `services/search/types` directly, never the `@/services/search` barrel** — the
   barrel re-exports `PostgresSearchService`, which imports `@/lib/db`, and
@@ -633,16 +651,44 @@ projects, because topping up the same syndicate twice is one holding.
 
 ## Buyer portal (`/buy`)
 
-**A marketplace, not a dashboard** (ADR-017). The buyer side is B2C: clients
-arrive to search, so `/buy` _is_ the search — reusing `searchService`,
-`SearchFilters` and `PropertyCard`, with the distress filters **collapsed**
-(Task 5.7) because a wall of defect chips is the wrong opening question for a
-consumer. `SearchFilters` and `SearchPagination` take a `basePath`, so
-`/marketplace` and `/buy` share one sidebar rather than two copies.
+**A marketplace, not a dashboard** (ADR-017), and since ADR-020 a **consumer
+surface rather than a role portal**. It is the one portal whose audience is not
+us, so it does not wear `<PortalShell>`:
+
+- **`<BuyerShell>`** — white chrome, a modest `h1`, and `<BuyerTabs>` carrying
+  live counts from `getBuyerActivityCounts`, so a tab says whether it holds
+  anything before it is clicked. `<ChromeGate>` excludes `/buy` from
+  `OVERLAY_PREFIXES`, so the global header sits above the page in flow rather
+  than floating inverted on a band.
+- **`<SearchControls>`** — a sticky filter bar (`Price · Beds · Property type ·
+EPC · More` popovers, removable active-filter chips, a full-screen sheet on
+  phones) in place of `/marketplace`'s rail. Price and beds come first; the
+  defect vocabulary lives inside `More`, which keeps Task 5.7's intent — a
+  consumer should not open on a wall of defect chips — as a disclosure.
+- **Results render on arrival.** The affordability calculator moved inside
+  `Price ▾` (`<AffordabilityPanel>`); it used to occupy the entire first screen
+  ahead of every listing.
+- **`view=grid|list`** rides in the query string beside the filters, so a shared
+  link opens the way the sender was reading it. `useSearchQuerySync` carries it
+  via `extra`, and `<SearchPagination>` via the same-named prop — neither owns
+  it, and both must avoid destroying it.
+
+**One filter behaviour, two presentations.** `useSearchQuerySync`
+(`components/marketplace/`) holds URL-as-state, the 300ms debounce, the live
+count and the during-render URL adoption. `<SearchFilters>` (the marketplace
+rail) and `<SearchControls>` (the buyer bar) are both just presentation over it,
+so they cannot drift apart about what a filter means.
 
 **The affordability calculator feeds the search.** `@/lib/affordability` is pure
 and unit-tested; its budget becomes `maxPrice` in the query. Labelled a guide,
 not a mortgage decision.
+
+**Saving works from the grid.** `<PropertyCard saveable>` renders a heart over
+the photo; `/buy` resolves the whole page's state in one query
+(`savedPropertyIdsFor`) rather than one call per card, and `/buy/saved` renders
+the shortlist as the same cards (`listSavedForCards`). The heart is offered only
+to a BUYER — `/api/listings/[id]/save` is BUYER/INVESTOR and re-authorises, so
+hiding it is presentation, never the boundary.
 
 **The write flows are real and unregulated.** The EOI constraint and the KYC gate
 cover _syndicate pledges_ only (CONTEXT §1–2) — a viewing request or an offer is
@@ -659,12 +705,21 @@ the property's agent.
   chart renders a warning above its figures, the seed marks every row
   `source: "SAMPLE"`, and an e2e test fails if the warning is removed.
 
-**`SearchFilters` pushes only when the URL actually differs.** Pushing on mount —
-when state still equals `initial` — rewrote the URL for nothing, and under load
-that spurious `replace` landed after an in-route navigation and wiped the filter
-it had just arrived with. It also adopts an externally-changed URL **during
-render**, not in an effect: an effect runs after the debounce has captured the
-stale values, which is the bug rather than the fix.
+**`useSearchQuerySync` pushes only when the URL actually differs.** Pushing on
+mount — when state still equals `initial` — rewrote the URL for nothing, and
+under load that spurious `replace` landed after an in-route navigation and wiped
+the filter it had just arrived with. The comparison is on the _filter_ query
+alone, never the carried `extra`, or arriving with `view=list` would count as a
+filter change. It also adopts an externally-changed URL **during render**, not
+in an effect: an effect runs after the debounce has captured the stale values,
+which is the bug rather than the fix.
+
+**The detail page is two columns** (ADR-020): gallery, then content beside a
+sticky action card holding price, key facts, save and the three buyer actions —
+a fixed bottom bar on phones. The enquiry form below is **not** a duplicate of
+the card's "Message agent" tab: the form writes an `Enquiry` row with contact
+details, which is what reaches the agent's leads table, while the tab opens a
+`ChatMessage` thread. Both are kept, with headings that say which is which.
 
 ## Design system
 
@@ -845,3 +900,6 @@ of the boundary.
 | [ADR-015](adr/ADR-015-marketplace-masthead.md)                      | Marketplace takes the reference's shell at tool scale; EPC band ink fixed                |
 | [ADR-016](adr/ADR-016-role-portals.md)                              | Three strictly separate role portals; `/portal` role router; read-side only              |
 | [ADR-017](adr/ADR-017-buyer-portal.md)                              | Buyer portal is a marketplace; real viewing/offer/chat writes; sample price data flagged |
+| [ADR-018](adr/ADR-018-agent-accounts-are-backend-provisioned.md)    | Agent accounts are provisioned from the backend, not self-serve                          |
+| [ADR-019](adr/ADR-019-admin-provisions-agents-by-invite.md)         | Admins provision agents; the agent sets their own password by invite                     |
+| [ADR-020](adr/ADR-020-buyer-portal-is-a-consumer-surface.md)        | Buyer portal gets consumer chrome, a filter bar and carousel cards; results-first        |

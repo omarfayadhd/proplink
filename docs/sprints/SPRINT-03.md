@@ -1186,3 +1186,135 @@ exactly the 40 seed listings behind, verified over consecutive runs.
 maths); 55 Playwright green including 7 new in `buyer-journey.spec.ts`. Typecheck,
 lint, format and build clean. Only the three long-standing `week2-auth` failures
 remain.
+
+## Agent is no longer a self-serve role (ADR-018)
+
+The product owner reviewed the `/register` role picker and asked for Agent to
+come out: agents will be added manually from the backend.
+
+Removed on **both** sides, because the picker alone is a client-side restriction
+on a role boundary and constraint 5 forbids trusting the client for role. The
+form now offers Buyer and Investor in a two-up grid, and `SELF_SERVE_ROLES` in
+`src/services/users/registration.ts` drops `Role.AGENT`, so a direct
+`POST /api/register` with `role: "AGENT"` answers 400 exactly as `ADMIN` already
+did.
+
+Tests followed: `registration.test.ts` now asserts both backend-provisioned
+roles are rejected, and `week2-auth.spec.ts` runs its register → verify → login
+flow over the two public roles.
+
+**Open:** there is no admin UI for creating an agent — `prisma/seed.ts` is the
+only route today. Logged in `docs/BLOCKERS.md` pending an admin
+user-management screen or an invite-token flow.
+
+## The admin screen that opens an agent account (ADR-019)
+
+ADR-018 left agents with no way in, so the same session built the way in:
+`/admin/agents/new`, reached from an "Add agent" button on the Users tab.
+
+**No password is handled by the admin.** The account is created with
+`passwordHash: null` and the agent sets their own from an emailed
+`AGENT_INVITE` link. That link reuses `/reset-password` — `resetPassword()`
+took a `purpose` argument rather than growing a parallel set-password path, so
+an invite token and a reset token cannot be spent as each other. The new
+purpose needed **no migration**: `VerificationToken.purpose` is a plain
+`String` column.
+
+`User` and `AgentProfile` are created in one transaction, because an `AGENT`
+with no agency has nothing to list under.
+
+**Driven in the real app, not just asserted.** Admin → add agent → copy the
+invite → set a password in a clean browser context → sign in → land on
+`/agent` with "Fairweather & Co" as the active profile.
+
+**Two test-hygiene notes.** The e2e server on :3100 runs `npm run start`, a
+**production build** — the first spec run failed five ways against a stale
+bundle that predated these files, and `npm run build` fixed all five. Worth
+remembering: `reuseExistingServer` will happily serve yesterday's app. And
+`getByRole("alert")` is ambiguous on any page with the cookie banner, so the
+form error carries a `data-testid`.
+
+`auth-pages.spec.ts` still asserted an Agent radio on `/register` from the
+earlier ADR-018 change; it now asserts the tile's absence.
+
+**Verification.** 520 unit + integration green (16 new, TDD); 61 Playwright
+green including 5 new in `admin-add-agent.spec.ts`. Typecheck, lint, format and
+build clean. The three long-standing `week2-auth` `Email verified ✓` failures
+are unchanged and reproduce on a clean checkout of `main`.
+
+## The buyer portal redesigned as a consumer surface (ADR-020)
+
+Seen end to end for the first time, `/buy` was a B2B tool wearing a consumer's
+job: a black `<PortalShell>` band reading "Find the right defect" over a
+five-field affordability form, with **no property visible until you scrolled
+past all of it**, `/marketplace`'s 280px filter rail opening on EPC bands and
+eight defect chips, and a card ending in "Commute times coming in a later week".
+
+Reference taken from Rightmove/Zoopla, as the product owner asked — that is
+what a UK buyer used this week.
+
+**What changed.** `<BuyerShell>` (light chrome, tabs carrying live counts)
+replaces `<PortalShell>` on `/buy/*` and `/buy` leaves `OVERLAY_PREFIXES`, so
+the header stops inverting. The rail becomes a sticky filter bar of popovers
+(`Price · Beds · Property type · EPC · More`) with removable active chips and a
+phone sheet. **Results render on arrival**: the affordability calculator moved
+inside `Price ▾`, unchanged maths, still writing `maxPrice`. `<PropertyCard>`
+gained a photo carousel, a save heart that works from the grid, a plain-English
+summary and a `list` variant; the roadmap note is gone. The detail page is two
+columns with a sticky action card and a fixed mobile bar.
+
+**The one thing worth copying elsewhere:** the URL-as-state, debounce and
+live-count logic moved out of `<SearchFilters>` into `useSearchQuerySync`. There
+are now two filter presentations over one behaviour, and copying the logic into
+both is how they would have quietly stopped agreeing about what a filter means.
+
+**A second pass on the chrome.** The first version still stacked four
+full-width bands above the first property — site header, tinted title band,
+filter bar, results toolbar — about 300px before a single house. That is the
+affordability form's mistake in a quieter register. The title band lost its tint
+and most of its height, sort and the grid/list toggle moved onto the filter row
+(they are controls over the same result set, not a separate concern), the count
+became a line of text over the grid, and the search input was width-capped so
+the row could hold it all. Chrome is now ~185px and two rows of cards are
+visible on a 1440×1000 viewport. The search field takes its own line below `sm`,
+where sharing one with the sort control squeezed it to the word "Town".
+
+**Two decisions that went against the first instinct.**
+
+- **`reset()` clears the sort too.** It briefly did not — "sort is a preference,
+  not a filter" is a fair argument — but "Clear filters" has meant _everything_
+  since Task 3.2 and `marketplace-search.spec.ts` asserts the URL returns to a
+  bare `/marketplace`. Narrowing an established contract was not this change's
+  business, and the failing test was right.
+- **The enquiry form stays** alongside the action card's "Message agent" tab.
+  They look like duplicates; they are not. The form writes an `Enquiry` row with
+  contact details — the agent's leads table — while the tab opens a
+  `ChatMessage` thread. Deleting either would have cut a funnel. The headings now
+  say which is which.
+
+**No map view.** The reference has one and buyers will expect it, but
+`StaticMapService` is still the mock (H3.1/H2.2 browser key). A pinned SVG
+behind a "Map" toggle over a result set that pans and filters is worse than no
+toggle, so the toggle is Grid/List. Row added to `docs/BLOCKERS.md`.
+
+**Driven in the real app, not just asserted.** Screenshotted at 1440px and
+390px: results-on-arrival, the affordability panel inside `Price ▾` with the
+grid still visible behind it, list view, the two-column detail page and the
+mobile action bar. Two layout bugs only the screenshots showed — a list row
+whose photo dictated a 400px height beside an empty text column, and a 16/9
+gallery hero that pushed the price and every action below the fold — were fixed
+and re-shot.
+
+**Tests.** Two `buyer-journey` specs asserted the old layout (the `<details>`
+disclosure, the always-visible calculator) and were rewritten to the new
+workflow rather than deleted; three specs added (save-from-grid, view-in-URL,
+results-on-arrival). `portals.spec.ts` now reads each portal's nav label from
+its role row, since the buyer's nav is deliberately named for what it is. The
+save-from-grid spec waits on the `/save` response, not the optimistic flip —
+navigating away can abort the in-flight fetch, which is exactly how it first
+failed.
+
+**Verification.** 533 unit + integration green (12 new); 61 of 63 Playwright
+green. The two red are the long-standing `week2-auth` `Email verified ✓`
+failures, confirmed unrelated by stashing this work and reproducing them (3 fail
+on the clean tree). Typecheck, lint and format clean.

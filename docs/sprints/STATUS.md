@@ -259,6 +259,24 @@ offers and buyer↔agent messaging, plus a deal tracker and price history
 Two gaps flagged in the UI itself: chat persists but does not push (H4.2 Pusher),
 and the price chart runs on **seeded SAMPLE data**, not Land Registry (H5.4).
 
+**Buyer portal redesigned as a consumer surface (2026-09-18, unplanned, requested
+directly)** — `/buy` was a B2B tool in consumer clothing: a black portal band
+over a five-field affordability form, with no property visible until you
+scrolled past it, `/marketplace`'s defect-first filter rail, and a card ending
+in "Commute times coming in a later week". Rebuilt to the Rightmove/Zoopla
+reference (ADR-020): `<BuyerShell>` light chrome with counted tabs, a sticky
+popover filter bar, **results on arrival** with the affordability calculator
+moved inside `Price ▾`, carousel-and-heart cards with a grid/list toggle in the
+URL, a shortlist that renders as cards, and a two-column detail page with a
+sticky action card (fixed bottom bar on mobile). Filter behaviour extracted to
+`useSearchQuerySync`, shared with `/marketplace`'s rail, which is otherwise
+unchanged. A second pass cut the chrome above the first property from ~300px to
+~185px — the tinted title band flattened, sort and the layout toggle folded onto
+the filter row, the results toolbar reduced to a line of text. `SearchResultItem` gained `imageUrls` (read-side only, no migration).
+⚠️ **No map view** — the reference has one, but H2.2's browser key is still
+missing and a pinned mock SVG behind a "Map" toggle would be worse than none;
+row added to `BLOCKERS.md`.
+
 **Figtree everywhere (2026-09-04)** — one variable family replaced both Inter and
 Playfair Display; `--font-sans` and `--font-display` now resolve to it (ADR-012
 supersedes ADR-006). The roman/italic heading device became a semibold/light
