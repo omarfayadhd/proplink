@@ -30,40 +30,96 @@ async function seededListingId(page: Page): Promise<string> {
 }
 
 test.describe("buyer portal", () => {
-  test("the search is the portal's home, with distress filters collapsed", async ({
-    page,
-  }) => {
+  test("the search opens on results, not on a finance form", async ({ page }) => {
     await login(page, BUYER, PASSWORD);
     await page.goto("/buy");
 
-    // B2C framing (Task 5.7): a consumer searches on price and beds first, so
-    // the defect chips start closed rather than absent.
+    // The whole point of ADR-020: a consumer arrives to look at houses, so
+    // properties are on screen before anything is asked of them.
     await expect(page.getByTestId("results-grid")).toBeVisible();
+    await expect(page.getByTestId("property-card").first()).toBeVisible();
 
-    // The disclosure summary is visible; the chips inside it are not, until it
-    // is opened. Asserting the inner label would assert the opposite of the
-    // behaviour under test.
-    const disclosure = page.locator("details");
-    await expect(disclosure).toHaveCount(1);
-    expect(await disclosure.evaluate((el: HTMLDetailsElement) => el.open)).toBe(false);
-    await expect(disclosure.locator("summary")).toContainText("Distress type");
+    // The affordability calculator still exists — it is inside `Price`, not in
+    // front of the results. Asserting it is *absent* on load is the assertion
+    // that would have caught the old layout.
+    await expect(page.getByTestId("affordability")).toHaveCount(0);
 
-    await disclosure.locator("summary").click();
+    // The defect vocabulary is one click inside `More`, not the opening
+    // question (Task 5.7's intent, re-expressed as a popover).
+    await expect(page.getByRole("button", { name: "Subsidence" })).toHaveCount(0);
+    await page.getByRole("button", { name: /^More/ }).click();
     await expect(page.getByRole("button", { name: "Subsidence" })).toBeVisible();
   });
 
-  test("the affordability calculator computes a budget and searches on it", async ({
+  test("the affordability calculator computes a budget and applies it to the search", async ({
     page,
   }) => {
     await login(page, BUYER, PASSWORD);
     await page.goto("/buy");
+
+    await page.getByRole("button", { name: /^Price/ }).click();
+    await page.getByText("Work out what I can afford").click();
 
     // £50k deposit + £60k × 4.5 = £320,000. The maths is unit-tested; this
     // proves the wiring, and that the budget reaches the search as `maxPrice`.
     await expect(page.getByTestId("max-budget")).toHaveText("£320,000");
 
-    await page.getByRole("link", { name: /Show listings up to/ }).click();
-    await expect(page).toHaveURL(/\/buy\?maxPrice=320000/);
+    await page.getByRole("button", { name: /Use £320,000 as my budget/ }).click();
+
+    // The hook debounces before it rewrites the URL, hence the URL assertion
+    // rather than a click-then-read.
+    await expect(page).toHaveURL(/maxPrice=320000/);
+    await expect(page.getByTestId("budget-value")).toHaveText("£320,000");
+  });
+
+  test("a buyer saves a property from the grid and finds it in their shortlist", async ({
+    page,
+  }) => {
+    await login(page, BUYER, PASSWORD);
+    await page.goto("/buy");
+
+    const card = page
+      .locator('[data-testid="property-card"][data-listing-id^="seed-listing-"]')
+      .first();
+    const id = await card.getAttribute("data-listing-id");
+    const heart = card.getByTestId("card-save-button");
+
+    // The heart flips optimistically, so `aria-pressed` alone proves nothing
+    // reached the server — and navigating away can abort the in-flight fetch.
+    // Wait on the response to `/save` instead.
+    const saveSettled = (method: "POST" | "DELETE") =>
+      page.waitForResponse(
+        (r) =>
+          r.url().includes(`/api/listings/${id}/save`) && r.request().method() === method,
+      );
+
+    // Start from a known state: the seed and earlier runs may have saved it.
+    if ((await heart.getAttribute("aria-pressed")) === "true") {
+      await Promise.all([saveSettled("DELETE"), heart.click()]);
+      await expect(heart).toHaveAttribute("aria-pressed", "false");
+    }
+
+    await Promise.all([saveSettled("POST"), heart.click()]);
+    await expect(heart).toHaveAttribute("aria-pressed", "true");
+
+    await page.goto("/buy/saved");
+    await expect(page.locator(`[data-listing-id="${id}"]`)).toBeVisible();
+  });
+
+  test("the results layout choice survives in the URL", async ({ page }) => {
+    await login(page, BUYER, PASSWORD);
+    await page.goto("/buy");
+
+    await page.getByRole("link", { name: "list", exact: true }).click();
+    await expect(page).toHaveURL(/view=list/);
+
+    // Reloading proves the view is genuinely in the URL rather than in state
+    // that merely wrote to it.
+    await page.reload();
+    await expect(page.getByRole("link", { name: "list", exact: true })).toHaveAttribute(
+      "aria-current",
+      "true",
+    );
   });
 
   test("a buyer requests a viewing and sees it in their portal", async ({ page }) => {

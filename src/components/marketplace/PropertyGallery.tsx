@@ -42,7 +42,10 @@ export function PropertyGallery({ images }: { images: GalleryImage[] }) {
         src={active.url}
         alt={active.alt}
         data-testid="gallery-main-image"
-        className="aspect-[16/9] w-full rounded-lg border border-line bg-surface object-cover"
+        // Capped, not just proportional: at the page's full width a 16/9 hero
+        // is ~650px tall and pushes the price, the key facts and every action
+        // below the fold — the photo is the invitation, not the page.
+        className="aspect-[16/9] max-h-[28rem] w-full rounded-xl border border-line bg-surface object-cover"
       />
       {images.length > 1 && (
         <div

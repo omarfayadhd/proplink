@@ -53,8 +53,12 @@ const OVERLAY_ROUTES = ["/", "/marketplace"];
  * `/agent/listings` inverts the header exactly as `/agent` does. Kept separate
  * from the exact list because `/marketplace` must invert while
  * `/marketplace/[id]` must not.
+ *
+ * `/buy` is deliberately absent (ADR-020): the buyer portal is the one consumer
+ * portal and wears light chrome, so its header sits above the page in flow like
+ * the detail page's, rather than floating inverted on a dark band.
  */
-const OVERLAY_PREFIXES = ["/agent", "/investor", "/buy", "/admin"];
+const OVERLAY_PREFIXES = ["/agent", "/investor", "/admin"];
 
 export function ChromeGate({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();

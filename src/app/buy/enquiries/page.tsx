@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { PortalEmpty } from "@/components/portal/PortalShell";
+import { BuyerEmpty } from "@/components/buy/BuyerShell";
 import { ActivityList, type ActivityItem } from "@/components/buy/ActivityList";
 
 export const dynamic = "force-dynamic";
@@ -20,9 +21,19 @@ export default async function EnquiriesPage() {
 
   if (enquiries.length === 0) {
     return (
-      <PortalEmpty>
-        No enquiries sent. Contacting an agent from a listing records it here.
-      </PortalEmpty>
+      <BuyerEmpty
+        title="No enquiries sent"
+        action={
+          <Link
+            href="/buy"
+            className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent"
+          >
+            Find a property
+          </Link>
+        }
+      >
+        Ask an agent a question from any listing and the conversation is recorded here.
+      </BuyerEmpty>
     );
   }
 

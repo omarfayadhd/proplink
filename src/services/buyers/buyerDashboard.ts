@@ -102,3 +102,39 @@ export async function getBuyerDashboard(userId: string): Promise<BuyerDashboard>
     })),
   };
 }
+
+/**
+ * How many items sit behind each buyer tab, for the badges on the portal's
+ * navigation (ADR-020).
+ *
+ * The tabs previously read as six identical words, so a buyer had to open each
+ * one to discover whether it held anything; a count on the tab answers that
+ * before the click. Counts, not rows — this runs on every buyer page render.
+ *
+ * `unreadMessages` is the only *actionable* number here: it counts messages
+ * addressed **to** this user that they have not opened, which is why it renders
+ * as an alert rather than as a neutral total like the others.
+ */
+export interface BuyerActivityCounts {
+  saved: number;
+  enquiries: number;
+  viewings: number;
+  offers: number;
+  unreadMessages: number;
+}
+
+export async function getBuyerActivityCounts(
+  userId: string,
+): Promise<BuyerActivityCounts> {
+  const [saved, enquiries, viewings, offers, unreadMessages] = await Promise.all([
+    db.savedProperty.count({ where: { userId } }),
+    db.enquiry.count({ where: { fromUserId: userId } }),
+    db.viewing.count({ where: { buyerUserId: userId } }),
+    db.offer.count({ where: { buyerUserId: userId } }),
+    // Indexed on `[toUserId, readAt]`, so this stays a cheap index-only count
+    // rather than a scan of the buyer's whole message history.
+    db.chatMessage.count({ where: { toUserId: userId, readAt: null } }),
+  ]);
+
+  return { saved, enquiries, viewings, offers, unreadMessages };
+}

@@ -1,6 +1,10 @@
 import { describe, expect, it } from "vitest";
 import { DistressTag, EpcRating, PropertyType } from "@/generated/prisma/enums";
-import { buildSearchQuery, buildSearchCountQuery } from "@/services/search/queryBuilder";
+import {
+  buildSearchQuery,
+  buildSearchCountQuery,
+  CARD_IMAGE_LIMIT,
+} from "@/services/search/queryBuilder";
 
 /**
  * The builder is pure — params in, a parameterised `Prisma.Sql` out — so every
@@ -316,5 +320,30 @@ describe("buildSearchQuery — combinations", () => {
 
     expect(text).not.toContain("DROP TABLE");
     expect(values).toContain(nasty);
+  });
+});
+
+/**
+ * The result card carries a photo carousel (ADR-020), so one query has to
+ * return several images per listing without becoming a per-row round trip.
+ */
+describe("buildSearchQuery — card images", () => {
+  it("selects a bounded array of photos alongside the cover image", () => {
+    const { text, values } = buildSearchQuery({});
+
+    expect(text).toContain(`AS "imageUrls"`);
+    expect(text).toContain(`AS "imageUrl"`);
+    // The cap is bound as a parameter, and the LIMIT sits inside the subquery
+    // so Postgres stops reading rows rather than aggregating and discarding.
+    expect(values).toContain(CARD_IMAGE_LIMIT);
+    expect(text).toMatch(/LIMIT \$\d+\s*\)\s*pi/);
+  });
+
+  // The count query renders no cards, so paying for their photos would be
+  // wasted work on the one query that runs on every keystroke.
+  it("leaves the image arrays out of the count query", () => {
+    const { text } = buildSearchCountQuery({});
+
+    expect(text).not.toContain(`"imageUrls"`);
   });
 });

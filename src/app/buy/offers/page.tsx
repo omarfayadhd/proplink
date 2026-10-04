@@ -1,8 +1,9 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { formatPenceGBP } from "@/services/metrics/globalMetrics";
 import { listBuyerOffers } from "@/services/offers/offerService";
-import { PortalEmpty } from "@/components/portal/PortalShell";
+import { BuyerEmpty } from "@/components/buy/BuyerShell";
 import { DealTracker } from "@/components/buy/DealTracker";
 import { ActivityList, type ActivityItem } from "@/components/buy/ActivityList";
 
@@ -18,9 +19,19 @@ export default async function OffersPage() {
 
   if (offers.length === 0) {
     return (
-      <PortalEmpty>
-        No offers submitted. Make an offer from a live listing and track it here.
-      </PortalEmpty>
+      <BuyerEmpty
+        title="No offers yet"
+        action={
+          <Link
+            href="/buy"
+            className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent"
+          >
+            Find a property
+          </Link>
+        }
+      >
+        Make an offer from any live listing and follow it through to completion here.
+      </BuyerEmpty>
     );
   }
 

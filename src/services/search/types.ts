@@ -57,6 +57,12 @@ export interface SearchResultItem {
   publishedAt: Date | null;
   /** First photo by `sortOrder`, or null if the listing has none. */
   imageUrl: string | null;
+  /**
+   * The card carousel's photos, by `sortOrder`, capped at
+   * `CARD_IMAGE_LIMIT`. `imageUrl` is retained as its first element so that
+   * every existing consumer keeps working unchanged.
+   */
+  imageUrls: string[];
   distressTags: DistressTag[];
   lat: number | null;
   lng: number | null;

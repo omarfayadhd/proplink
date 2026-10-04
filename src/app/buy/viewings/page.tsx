@@ -1,7 +1,8 @@
+import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listBuyerViewings } from "@/services/viewings/viewingService";
-import { PortalEmpty } from "@/components/portal/PortalShell";
+import { BuyerEmpty } from "@/components/buy/BuyerShell";
 import { ActivityList, type ActivityItem } from "@/components/buy/ActivityList";
 
 export const dynamic = "force-dynamic";
@@ -24,10 +25,20 @@ export default async function ViewingsPage() {
 
   if (viewings.length === 0) {
     return (
-      <PortalEmpty>
-        No viewings requested. Ask for a slot from any live listing and it appears here
-        once the agent has seen it.
-      </PortalEmpty>
+      <BuyerEmpty
+        title="No viewings booked"
+        action={
+          <Link
+            href="/buy"
+            className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent"
+          >
+            Find a property
+          </Link>
+        }
+      >
+        Ask for a slot from any live listing. It appears here as soon as the agent has
+        seen the request.
+      </BuyerEmpty>
     );
   }
 

@@ -6,11 +6,34 @@ test.skip(!hasDb, "requires DATABASE_URL/.env.local");
 
 const PASSWORD = "Password123!";
 
-/** Every self-serve role, its portal, and the two it must never reach. */
+/**
+ * Every self-serve role, its portal, the two it must never reach, and the
+ * accessible name of its own navigation.
+ *
+ * `nav` is per-role because the buyer portal wears consumer chrome (ADR-020)
+ * and calls its tabs what they are; the agent, investor and admin portals
+ * share `<PortalShell>`'s "Portal". The invariant under test is that a portal
+ * exposes its own pages, not that every portal spells it the same way.
+ */
 const ROLES = [
-  { email: "agent@proplink.test", home: "/agent", forbidden: ["/investor", "/buy"] },
-  { email: "investor@proplink.test", home: "/investor", forbidden: ["/agent", "/buy"] },
-  { email: "buyer@proplink.test", home: "/buy", forbidden: ["/agent", "/investor"] },
+  {
+    email: "agent@proplink.test",
+    home: "/agent",
+    forbidden: ["/investor", "/buy"],
+    nav: "Portal",
+  },
+  {
+    email: "investor@proplink.test",
+    home: "/investor",
+    forbidden: ["/agent", "/buy"],
+    nav: "Portal",
+  },
+  {
+    email: "buyer@proplink.test",
+    home: "/buy",
+    forbidden: ["/agent", "/investor"],
+    nav: "Your activity",
+  },
 ] as const;
 
 /**
@@ -33,7 +56,7 @@ test.describe("role portals are separate", () => {
       await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
       // The portal's own sub-nav is its only navigation — the global header
       // carries none, so an empty nav means unreachable pages.
-      await expect(page.getByRole("navigation", { name: "Portal" })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: role.nav })).toBeVisible();
 
       for (const path of role.forbidden) {
         await expectForbidden(page, path);

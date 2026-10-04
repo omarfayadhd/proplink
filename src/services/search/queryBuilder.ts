@@ -152,15 +152,26 @@ export function resolvePageSize(pageSize?: number): number {
   return Math.min(Math.floor(pageSize), MAX_PAGE_SIZE);
 }
 
+/**
+ * How many photos a result card carries for its carousel.
+ *
+ * The card shows them one at a time and a listing can hold far more, so this is
+ * the point at which "enough to swipe through" stops being worth the bytes on
+ * a page rendering 24 cards. The LIMIT is inside the subquery, not applied
+ * after aggregation, so Postgres stops reading rows rather than building a
+ * large array and discarding most of it.
+ */
+export const CARD_IMAGE_LIMIT = 8;
+
 export function resolvePage(page?: number): number {
   if (!page || page < 1) return 1;
   return Math.floor(page);
 }
 
 /**
- * Result rows for the search grid. The first image and the distress tags come
- * from correlated subqueries rather than a second round trip, so one query
- * returns everything a `PropertyCard` renders, already ordered.
+ * Result rows for the search grid. The images and the distress tags come from
+ * correlated subqueries rather than a second round trip, so one query returns
+ * everything a `PropertyCard` renders, already ordered.
  */
 export function buildSearchQuery(params: SearchParams): Prisma.Sql {
   const pageSize = resolvePageSize(params.pageSize);
@@ -188,6 +199,15 @@ export function buildSearchQuery(params: SearchParams): Prisma.Sql {
         ORDER BY pi."sortOrder" ASC
         LIMIT 1
       ) AS "imageUrl",
+      COALESCE((
+        SELECT array_agg(pi."url" ORDER BY pi."sortOrder" ASC)
+        FROM (
+          SELECT pi2."url", pi2."sortOrder" FROM "PropertyImage" pi2
+          WHERE pi2."propertyId" = p."id"
+          ORDER BY pi2."sortOrder" ASC
+          LIMIT ${CARD_IMAGE_LIMIT}
+        ) pi
+      ), ARRAY[]::text[]) AS "imageUrls",
       COALESCE((
         SELECT array_agg(pdt."tag"::text ORDER BY pdt."tag")
         FROM "PropertyDistressTag" pdt

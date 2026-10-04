@@ -7,6 +7,7 @@ vi.mock("@/lib/db", () => ({
       upsert: vi.fn(),
       deleteMany: vi.fn(),
       findUnique: vi.fn(),
+      findMany: vi.fn(),
     },
   },
 }));
@@ -16,6 +17,8 @@ import { PropertyStatus } from "@/generated/prisma/enums";
 import { ListingServiceError } from "@/services/listings/errors";
 import {
   isListingSavedBy,
+  listSavedForCards,
+  savedPropertyIdsFor,
   saveListing,
   unsaveListing,
 } from "@/services/listings/savedProperties";
@@ -126,5 +129,105 @@ describe("isListingSavedBy", () => {
     expect(await isListingSavedBy({ userId: USER_ID, propertyId: PROPERTY_ID })).toBe(
       false,
     );
+  });
+});
+
+/**
+ * The results grid renders a heart per card, so it needs the whole page's
+ * saved set in one go. Anything that made this per-card would reintroduce the
+ * N+1 it exists to avoid.
+ */
+describe("savedPropertyIdsFor", () => {
+  it("returns the saved ids as a set, scoped to the user in the query", async () => {
+    mockDb.savedProperty.findMany.mockResolvedValue([
+      { propertyId: "p1" },
+      { propertyId: "p3" },
+    ] as never);
+
+    const ids = await savedPropertyIdsFor({
+      userId: USER_ID,
+      propertyIds: ["p1", "p2", "p3"],
+    });
+
+    expect(ids).toEqual(new Set(["p1", "p3"]));
+    expect(mockDb.savedProperty.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: USER_ID, propertyId: { in: ["p1", "p2", "p3"] } },
+      }),
+    );
+  });
+
+  // An empty results page is normal (a filter that matches nothing), and
+  // `IN ()` is a query whose answer is already known.
+  it("does not query at all for an empty id list", async () => {
+    const ids = await savedPropertyIdsFor({ userId: USER_ID, propertyIds: [] });
+
+    expect(ids.size).toBe(0);
+    expect(mockDb.savedProperty.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("listSavedForCards", () => {
+  it("maps a saved row onto the card shape the search grid renders", async () => {
+    mockDb.savedProperty.findMany.mockResolvedValue([
+      {
+        property: {
+          id: "p1",
+          title: "Probate sale — three-bed semi",
+          city: "London",
+          region: "Greater London",
+          postcode: "E1 6AN",
+          propertyType: "RESIDENTIAL",
+          bedrooms: 3,
+          askingPriceGBP: 4_500_000,
+          targetRoiPct: 8,
+          epcRating: "D",
+          status: "LIVE",
+          publishedAt: new Date("2026-08-07T00:00:00Z"),
+          images: [{ url: "/a.svg" }, { url: "/b.svg" }],
+          distressTags: [{ tag: "PROBATE" }],
+        },
+      },
+    ] as never);
+
+    const [card] = await listSavedForCards(USER_ID);
+
+    expect(card).toMatchObject({
+      id: "p1",
+      askingPriceGBP: 4_500_000,
+      // The first image by sortOrder stays the single-image field, so the
+      // carousel and the older `imageUrl` consumers agree about the cover shot.
+      imageUrl: "/a.svg",
+      imageUrls: ["/a.svg", "/b.svg"],
+      distressTags: ["PROBATE"],
+    });
+  });
+
+  it("tolerates a saved listing with no photos", async () => {
+    mockDb.savedProperty.findMany.mockResolvedValue([
+      {
+        property: {
+          id: "p2",
+          title: "No photos yet",
+          city: "Leeds",
+          region: "West Yorkshire",
+          postcode: "LS1 1AA",
+          propertyType: "RESIDENTIAL",
+          bedrooms: 0,
+          askingPriceGBP: 1_000_00,
+          targetRoiPct: null,
+          epcRating: null,
+          status: "LIVE",
+          publishedAt: null,
+          images: [],
+          distressTags: [],
+        },
+      },
+    ] as never);
+
+    const [card] = await listSavedForCards(USER_ID);
+
+    expect(card.imageUrl).toBeNull();
+    expect(card.imageUrls).toEqual([]);
   });
 });

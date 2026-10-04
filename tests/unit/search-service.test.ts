@@ -28,6 +28,7 @@ function rawRow(overrides: Record<string, unknown> = {}) {
     lat: 51.5074,
     lng: -0.1278,
     imageUrl: "/uploads/seed/plate-01.svg",
+    imageUrls: ["/uploads/seed/plate-01.svg", "/uploads/seed/plate-02.svg"],
     distressTags: ["PROBATE"],
     ...overrides,
   };
@@ -70,12 +71,24 @@ describe("PostgresSearchService.search", () => {
   // A listing with no photos yet is normal (the wizard allows saving a draft
   // before the media step), and the card renders a placeholder.
   it("tolerates a listing with no image and no tags", async () => {
-    mockQueries([rawRow({ imageUrl: null, distressTags: [] })], 1);
+    mockQueries([rawRow({ imageUrl: null, imageUrls: [], distressTags: [] })], 1);
 
     const result = await service.search({});
 
     expect(result.items[0].imageUrl).toBeNull();
+    expect(result.items[0].imageUrls).toEqual([]);
     expect(result.items[0].distressTags).toEqual([]);
+  });
+
+  // `array_agg` over no rows returns NULL rather than an empty array. The
+  // query COALESCEs it, but a card mapping over `imageUrls` would crash on a
+  // null, so the mapper defends against it the same way it does for tags.
+  it("maps a null image array to an empty one", async () => {
+    mockQueries([rawRow({ imageUrls: null })], 1);
+
+    const result = await service.search({});
+
+    expect(result.items[0].imageUrls).toEqual([]);
   });
 
   it("reports the resolved page and page size, not the raw request", async () => {

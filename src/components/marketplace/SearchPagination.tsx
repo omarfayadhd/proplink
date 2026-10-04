@@ -12,17 +12,30 @@ export function SearchPagination({
   page,
   totalPages,
   basePath = "/marketplace",
+  extra,
 }: {
   params: SearchParams;
   page: number;
   totalPages: number;
   /** Where the page links point. `/buy` reuses this component (ADR-017). */
   basePath?: string;
+  /**
+   * Query params outside `SearchParams` that must survive paging — the buyer
+   * portal's `view` (ADR-020). Without this, going to page 2 of a list view
+   * silently returns the grid.
+   */
+  extra?: Record<string, string | undefined>;
 }) {
   if (totalPages <= 1) return null;
 
+  const extraQuery = new URLSearchParams(
+    Object.entries(extra ?? {}).filter(([, v]) => v) as [string, string][],
+  ).toString();
+
   const href = (target: number) => {
-    const qs = buildSearchQueryString({ ...params, page: target });
+    const qs = [buildSearchQueryString({ ...params, page: target }), extraQuery]
+      .filter(Boolean)
+      .join("&");
     return qs ? `${basePath}?${qs}` : basePath;
   };
 

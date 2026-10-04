@@ -1,16 +1,21 @@
 "use client";
 
-import Link from "next/link";
 import { useMemo, useState } from "react";
 import { affordability } from "@/lib/affordability";
 
 /**
- * The buyer's affordability calculator (Task 5.7).
+ * The buyer's affordability calculator (Task 5.7), as a panel inside the Price
+ * filter rather than a wall in front of the results (ADR-020).
+ *
+ * It used to open the buyer portal, which meant every visitor answered five
+ * finance questions before seeing a single property. Consumer property search
+ * does not work that way: you look first, and you work out what you can afford
+ * when the prices start mattering. So the maths is unchanged and the placement
+ * is not — it now sits one click inside `Price ▾`, and `onApply` writes its
+ * answer straight into the search as `maxPrice`.
  *
  * Client-side and instant: the maths is pure (`@/lib/affordability`, unit
- * tested), so there is nothing to submit and no round trip. Its output feeds
- * straight into the search — the budget becomes `maxPrice`, which is the whole
- * point of putting it on a search page rather than on a tools page.
+ * tested), so there is nothing to submit and no round trip.
  *
  * **It is a guide, not a decision.** Lenders stress-test affordability, credit
  * score, and apply their own multiples. Saying so is not a disclaimer for its
@@ -62,7 +67,12 @@ function Field({
   );
 }
 
-export function AffordabilityCalculator() {
+export function AffordabilityPanel({
+  onApply,
+}: {
+  /** Receives the computed budget in **whole pounds** — the unit the slider uses. */
+  onApply: (budgetPounds: number) => void;
+}) {
   const [deposit, setDeposit] = useState(50_000);
   const [income, setIncome] = useState(60_000);
   const [multiple, setMultiple] = useState(4.5);
@@ -84,19 +94,12 @@ export function AffordabilityCalculator() {
   const budgetPounds = Math.floor(result.maxBudgetGBP / 100);
 
   return (
-    <section
-      data-testid="affordability"
-      aria-labelledby="affordability-heading"
-      className="rounded-2xl border border-line bg-surface p-6"
-    >
-      <h2 id="affordability-heading" className="text-lg font-semibold text-primary">
-        What can you spend?
-      </h2>
-      <p className="mt-1 text-sm text-muted">
+    <div data-testid="affordability" className="space-y-4">
+      <p className="text-xs text-muted">
         A guide, not a mortgage decision — lenders apply their own affordability checks.
       </p>
 
-      <div className="mt-6 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+      <div className="grid grid-cols-2 gap-3">
         <Field
           label="Deposit"
           suffix="£"
@@ -105,75 +108,56 @@ export function AffordabilityCalculator() {
           step={1000}
         />
         <Field
-          label="Annual income"
+          label="Income"
           suffix="£"
           value={income}
           onChange={setIncome}
           step={1000}
         />
-        <Field
-          label="Income multiple"
-          value={multiple}
-          onChange={setMultiple}
-          step={0.1}
-        />
-        <Field
-          label="Interest rate"
-          suffix="%"
-          value={rate}
-          onChange={setRate}
-          step={0.1}
-        />
+        <Field label="Multiple" value={multiple} onChange={setMultiple} step={0.1} />
+        <Field label="Rate" suffix="%" value={rate} onChange={setRate} step={0.1} />
         <Field label="Term" suffix="years" value={term} onChange={setTerm} />
       </div>
 
-      <dl className="mt-8 grid gap-x-8 gap-y-6 border-t border-line pt-6 sm:grid-cols-3">
+      <dl className="grid grid-cols-2 gap-3 border-t border-line pt-4">
         <div>
           <dd
             data-testid="max-budget"
-            className="text-3xl font-semibold tracking-tight text-primary"
+            className="text-2xl font-semibold tracking-tight text-primary"
           >
             {GBP.format(result.maxBudgetGBP / 100)}
           </dd>
-          <dt className="mt-2 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
-            Maximum budget
+          <dt className="mt-1 text-[10px] font-semibold tracking-[0.12em] text-muted uppercase">
+            Max budget
           </dt>
         </div>
         <div>
-          <dd className="text-3xl font-semibold tracking-tight text-primary">
-            {GBP.format(result.maxBorrowGBP / 100)}
-          </dd>
-          <dt className="mt-2 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
-            Borrowing
-          </dt>
-        </div>
-        <div>
-          <dd className="text-3xl font-semibold tracking-tight text-primary">
+          <dd className="text-2xl font-semibold tracking-tight text-primary">
             {GBP.format(result.monthlyRepaymentGBP / 100)}
           </dd>
-          <dt className="mt-2 text-[11px] font-semibold tracking-[0.12em] text-muted uppercase">
+          <dt className="mt-1 text-[10px] font-semibold tracking-[0.12em] text-muted uppercase">
             Per month
           </dt>
         </div>
       </dl>
 
-      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
-        {/* The calculator's whole reason for sitting on a search page. */}
-        <Link
-          href={`/buy?maxPrice=${budgetPounds}`}
-          className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
-        >
-          Show listings up to {GBP.format(budgetPounds)}
-        </Link>
-        <a
-          href="https://www.moneyhelper.org.uk/en/homes/buying-a-home/mortgage-agreement-in-principle"
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-sm font-semibold text-primary underline decoration-line underline-offset-4 hover:decoration-accent"
-        >
-          About decisions in principle
-        </a>
-      </div>
-    </section>
+      {/* The panel's whole reason for sitting inside the price filter. */}
+      <button
+        type="button"
+        onClick={() => onApply(budgetPounds)}
+        className="w-full rounded-full bg-primary px-5 py-2.5 text-sm font-semibold text-white transition-colors hover:bg-accent focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+      >
+        Use {GBP.format(budgetPounds)} as my budget
+      </button>
+
+      <a
+        href="https://www.moneyhelper.org.uk/en/homes/buying-a-home/mortgage-agreement-in-principle"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="block text-xs font-semibold text-primary underline decoration-line underline-offset-4 hover:decoration-accent"
+      >
+        About decisions in principle
+      </a>
+    </div>
   );
 }

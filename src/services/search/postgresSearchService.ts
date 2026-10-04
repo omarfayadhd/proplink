@@ -30,6 +30,7 @@ interface RawSearchRow {
   lat: number | null;
   lng: number | null;
   imageUrl: string | null;
+  imageUrls: string[] | null;
   distressTags: string[] | null;
 }
 
@@ -40,6 +41,7 @@ function toItem(row: RawSearchRow): SearchResultItem {
     // the query COALESCEs it, but the mapper stays defensive since a null here
     // would crash every card that maps over the list.
     distressTags: (row.distressTags ?? []) as DistressTag[],
+    imageUrls: row.imageUrls ?? [],
   };
 }
 

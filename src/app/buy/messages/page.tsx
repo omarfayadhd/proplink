@@ -2,7 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { auth } from "@/lib/auth";
 import { listThreads } from "@/services/chat/chatService";
-import { PortalEmpty } from "@/components/portal/PortalShell";
+import { BuyerEmpty } from "@/components/buy/BuyerShell";
 
 export const dynamic = "force-dynamic";
 
@@ -32,9 +32,19 @@ export default async function MessagesPage() {
 
       {threads.length === 0 ? (
         <div className="mt-8">
-          <PortalEmpty>
-            No conversations yet. Message an agent from any live listing to start one.
-          </PortalEmpty>
+          <BuyerEmpty
+            title="No conversations yet"
+            action={
+              <Link
+                href="/buy"
+                className="rounded-full bg-primary px-6 py-3 text-sm font-semibold text-white transition-colors hover:bg-accent"
+              >
+                Find a property
+              </Link>
+            }
+          >
+            Message an agent from any live listing to start one.
+          </BuyerEmpty>
         </div>
       ) : (
         <ul className="mt-8 border-t border-line">
